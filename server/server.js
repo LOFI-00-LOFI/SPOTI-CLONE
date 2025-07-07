@@ -2,6 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const audioRoutes = require('./routes/audio');
+const playlistRoutes = require('./routes/playlist');
+const authRoutes = require('./routes/auth');
 const morgan = require('morgan');
 require('dotenv').config();
 
@@ -22,7 +24,9 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.error('MongoDB connection error:', err));
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/audio', audioRoutes);
+app.use('/api/playlists', playlistRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

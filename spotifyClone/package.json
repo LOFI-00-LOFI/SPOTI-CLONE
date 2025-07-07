@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "unused": "unused-exports ./src"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.56.2",
@@ -36,6 +37,7 @@
     "tailwindcss": "^3.4.11",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
+    "unused-exports": "^0.0.6-beta",
     "vite": "^5.4.1"
   }
 }

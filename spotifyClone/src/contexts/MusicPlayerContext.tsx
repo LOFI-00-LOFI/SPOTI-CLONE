@@ -31,6 +31,8 @@ interface MusicPlayerState {
   currentIndex: number;
   shuffle: boolean;
   repeat: 'none' | 'once' | 'forever';
+  shuffledIndices: number[];
+  shuffleIndex: number;
 }
 
 type MusicPlayerAction =
@@ -42,7 +44,9 @@ type MusicPlayerAction =
   | { type: 'SET_DURATION'; payload: number }
   | { type: 'SET_VOLUME'; payload: number }
   | { type: 'TOGGLE_SHUFFLE' }
-  | { type: 'TOGGLE_REPEAT' };
+  | { type: 'TOGGLE_REPEAT' }
+  | { type: 'GENERATE_SHUFFLE_INDICES' }
+  | { type: 'SET_SHUFFLE_INDEX'; payload: number };
 
 const initialState: MusicPlayerState = {
   currentTrack: null,
@@ -54,6 +58,8 @@ const initialState: MusicPlayerState = {
   currentIndex: 0,
   shuffle: false,
   repeat: 'none',
+  shuffledIndices: [],
+  shuffleIndex: -1,
 };
 
 function musicPlayerReducer(state: MusicPlayerState, action: MusicPlayerAction): MusicPlayerState {
@@ -72,6 +78,8 @@ function musicPlayerReducer(state: MusicPlayerState, action: MusicPlayerAction):
         queue: action.payload,
         currentIndex: 0,
         currentTrack: action.payload[0] || null,
+        shuffledIndices: [],
+        shuffleIndex: -1,
       };
     
     case 'PLAY':
@@ -90,13 +98,51 @@ function musicPlayerReducer(state: MusicPlayerState, action: MusicPlayerAction):
       return { ...state, volume: action.payload };
     
     case 'TOGGLE_SHUFFLE':
-      return { ...state, shuffle: !state.shuffle };
+      const newShuffle = !state.shuffle;
+      if (newShuffle && state.queue.length > 0) {
+        // Generate shuffled indices when turning shuffle on
+        const indices = Array.from({ length: state.queue.length }, (_, i) => i);
+        for (let i = indices.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [indices[i], indices[j]] = [indices[j], indices[i]];
+        }
+        
+        // Find current track in shuffled array
+        const shuffleIndex = indices.indexOf(state.currentIndex);
+        
+        return {
+          ...state,
+          shuffle: newShuffle,
+          shuffledIndices: indices,
+          shuffleIndex: shuffleIndex,
+        };
+      }
+      return { ...state, shuffle: newShuffle };
     
     case 'TOGGLE_REPEAT':
       const modes: ('none' | 'once' | 'forever')[] = ['none', 'once', 'forever'];
       const currentIndex = modes.indexOf(state.repeat);
       const nextMode = modes[(currentIndex + 1) % modes.length];
       return { ...state, repeat: nextMode };
+    
+    case 'GENERATE_SHUFFLE_INDICES':
+      if (state.queue.length === 0) return state;
+      
+      // Generate shuffled indices using Fisher-Yates algorithm
+      const indices = Array.from({ length: state.queue.length }, (_, i) => i);
+      for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+      
+      return {
+        ...state,
+        shuffledIndices: indices,
+        shuffleIndex: -1,
+      };
+    
+    case 'SET_SHUFFLE_INDEX':
+      return { ...state, shuffleIndex: action.payload };
     
     default:
       return state;
@@ -133,6 +179,7 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const response = await localApi.getTracks({ order: 'newest', limit: 50, page: 1 });
       if (response.results?.length) {
         dispatch({ type: 'SET_QUEUE', payload: response.results });
+        dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
       }
     } catch (error) {
       console.error('Failed to load songs:', error);
@@ -149,6 +196,7 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       });
       if (response.results?.length) {
         dispatch({ type: 'SET_QUEUE', payload: [...state.queue, ...response.results] });
+        dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
       }
     } catch (error) {
       console.error('Failed to load more tracks:', error);
@@ -198,7 +246,9 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       let nextIndex;
       if (state.shuffle) {
-        nextIndex = Math.floor(Math.random() * state.queue.length);
+        const newShuffleIndex = (state.shuffleIndex + 1) % state.shuffledIndices.length;
+        nextIndex = state.shuffledIndices[newShuffleIndex];
+        dispatch({ type: 'SET_SHUFFLE_INDEX', payload: newShuffleIndex });
       } else {
         nextIndex = (state.currentIndex + 1) % state.queue.length;
       }
@@ -270,25 +320,42 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         if (response.results?.length) {
           const newQueue = [track, ...response.results.filter(t => t.id !== track.id)];
           dispatch({ type: 'SET_QUEUE', payload: newQueue });
+          dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
           trackIndex = 0;
         }
       } catch (error) {
         console.error('Failed to load queue:', error);
         // Just play the single track
         dispatch({ type: 'SET_QUEUE', payload: [track] });
+        dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
         trackIndex = 0;
       }
     }
 
     dispatch({ type: 'SET_TRACK', payload: { track, index: trackIndex } });
+    
+    // Update shuffle index if in shuffle mode
+    if (state.shuffle && state.shuffledIndices.length > 0) {
+      const shuffleIndex = state.shuffledIndices.indexOf(trackIndex);
+      dispatch({ type: 'SET_SHUFFLE_INDEX', payload: shuffleIndex });
+    }
+    
     dispatch({ type: 'PLAY' });
   };
 
   const playQueue = (tracks: LocalTrack[], startIndex = 0) => {
     dispatch({ type: 'SET_QUEUE', payload: tracks });
+    dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
     const track = tracks[startIndex];
     if (track) {
       dispatch({ type: 'SET_TRACK', payload: { track, index: startIndex } });
+      
+      // Update shuffle index if in shuffle mode
+      if (state.shuffle && state.shuffledIndices.length > 0) {
+        const shuffleIndex = state.shuffledIndices.indexOf(startIndex);
+        dispatch({ type: 'SET_SHUFFLE_INDEX', payload: shuffleIndex });
+      }
+      
       dispatch({ type: 'PLAY' });
     }
   };
@@ -311,7 +378,9 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     let nextIndex;
     if (state.shuffle) {
-      nextIndex = Math.floor(Math.random() * state.queue.length);
+      const newShuffleIndex = (state.shuffleIndex + 1) % state.shuffledIndices.length;
+      nextIndex = state.shuffledIndices[newShuffleIndex];
+      dispatch({ type: 'SET_SHUFFLE_INDEX', payload: newShuffleIndex });
     } else {
       nextIndex = (state.currentIndex + 1) % state.queue.length;
     }
@@ -350,7 +419,9 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     let prevIndex;
     if (state.shuffle) {
-      prevIndex = Math.floor(Math.random() * state.queue.length);
+      const newShuffleIndex = state.shuffleIndex === 0 ? state.shuffledIndices.length - 1 : state.shuffleIndex - 1;
+      prevIndex = state.shuffledIndices[newShuffleIndex];
+      dispatch({ type: 'SET_SHUFFLE_INDEX', payload: newShuffleIndex });
     } else {
       prevIndex = state.currentIndex === 0 ? state.queue.length - 1 : state.currentIndex - 1;
     }

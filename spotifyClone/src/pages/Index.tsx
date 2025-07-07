@@ -8,13 +8,15 @@ import RightSidebar from "@/components/RightSidebar";
 import MusicPlayer from "@/components/MusicPlayer";
 import DraggableMiniPlayer from "@/components/DraggableMiniPlayer";
 import LikedSongsPage from "@/components/LikedSongsPage";
+import PlaylistPage from "@/components/PlaylistPage";
 import UploadMusic from "@/components/UploadMusic";
 
-type CurrentView = 'home' | 'liked-songs';
+type CurrentView = 'home' | 'liked-songs' | 'playlist';
 
 interface NavigationContextType {
   currentView: CurrentView;
-  setCurrentView: (view: CurrentView) => void;
+  currentPlaylistId?: string;
+  setCurrentView: (view: CurrentView, playlistId?: string) => void;
 }
 
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
@@ -30,6 +32,7 @@ export const useNavigation = () => {
 const Index = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [currentView, setCurrentView] = useState<CurrentView>('home');
+  const [currentPlaylistId, setCurrentPlaylistId] = useState<string>();
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -49,12 +52,24 @@ const Index = () => {
 
   const handleHomeClick = () => {
     setCurrentView('home');
+    setCurrentPlaylistId(undefined);
+  };
+
+  const handleViewChange = (view: CurrentView, playlistId?: string) => {
+    setCurrentView(view);
+    setCurrentPlaylistId(playlistId);
   };
 
   const renderMainContent = () => {
     switch (currentView) {
       case 'liked-songs':
         return <LikedSongsPage searchQuery={searchQuery} />;
+      case 'playlist':
+        return currentPlaylistId ? (
+          <PlaylistPage playlistId={currentPlaylistId} searchQuery={searchQuery} />
+        ) : (
+          <MainContent searchQuery={searchQuery} />
+        );
       case 'home':
       default:
         return <MainContent searchQuery={searchQuery} />;
@@ -62,7 +77,7 @@ const Index = () => {
   };
 
   return (
-    <NavigationContext.Provider value={{ currentView, setCurrentView }}>
+    <NavigationContext.Provider value={{ currentView, currentPlaylistId, setCurrentView: handleViewChange }}>
       <div className="h-screen bg-[#000000] text-white flex  flex-col overflow-hidden">
         {/* Full Width Header */}
         <Header searchQuery={searchQuery} onSearchChange={handleSearch} onHomeClick={handleHomeClick} />

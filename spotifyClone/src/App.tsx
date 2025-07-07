@@ -4,27 +4,42 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MusicPlayerProvider } from "@/contexts/MusicPlayerContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { LikedSongsProvider } from "@/contexts/LikedSongsContext";
+import { PlaylistProvider } from "@/contexts/PlaylistContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import UploadMusic from "./components/UploadMusic";
+import LoginPage from "./components/LoginPage";
+import SignupPage from "./components/SignupPage";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ToastProvider>
-      <LikedSongsProvider>
-        <MusicPlayerProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/upload" element={<UploadMusic onClose={() => {}} onUploadSuccess={() => {}} />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </MusicPlayerProvider>
-      </LikedSongsProvider>
-    </ToastProvider>
+    <AuthProvider>
+      <ToastProvider>
+        <LikedSongsProvider>
+          <PlaylistProvider>
+            <MusicPlayerProvider>
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/login" element={<LoginPage />} />
+                  <Route path="/signup" element={<SignupPage />} />
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute>
+                        <Index />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route path="*" element={<LoginPage />} />
+                </Routes>
+              </BrowserRouter>
+            </MusicPlayerProvider>
+          </PlaylistProvider>
+        </LikedSongsProvider>
+      </ToastProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

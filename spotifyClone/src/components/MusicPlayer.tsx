@@ -175,15 +175,11 @@ const MusicPlayer = () => {
               <SkipForward className="h-4 w-4 fill-current" />
             </button>
             <button
-              onClick={() => {
-                console.log('Repeat button clicked, current state:', state.repeat);
-                toggleRepeat();
-              }}
+              onClick={toggleRepeat}
               title={
-                state.repeat === 'none' ? 'No repeat' :
-                state.repeat === 'all' ? 'Repeat all tracks' :
-                state.repeat === 'once' ? 'Repeat current track once (play 2 times total)' :
-                'Repeat current track forever (infinite loop)'
+                state.repeat === 'none' ? 'Repeat Off' :
+                state.repeat === 'once' ? 'Repeat Once - plays current track once more' :
+                'Repeat Forever - infinite loop of current track'
               }
               className={`h-8 w-8 hover:bg-[#1a1a1a] rounded-full inline-flex items-center justify-center relative transition-all duration-200 ${
                 state.repeat !== 'none' ? 'text-[#1db954]' : 'text-[#b3b3b3] hover:text-white'
@@ -193,7 +189,7 @@ const MusicPlayer = () => {
               {state.repeat === 'once' && (
                 <span 
                   className="absolute -top-1 -right-1 w-2 h-2 bg-[#1db954] rounded-full"
-                  title="Repeat once - plays 2 times total"
+                  title="Repeat once"
                 ></span>
               )}
               {state.repeat === 'forever' && (
@@ -202,13 +198,6 @@ const MusicPlayer = () => {
                   title="Repeat forever"
                 >
                   ∞
-                </span>
-              )}
-              {state.repeat === 'all' && (
-                <span 
-                  className="absolute -bottom-1 -right-1 text-[6px] font-bold text-[#1db954] leading-none"
-                >
-                  All
                 </span>
               )}
             </button>

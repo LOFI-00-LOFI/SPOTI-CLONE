@@ -1,7 +1,8 @@
-import { Play } from "lucide-react";
+import { Play, Plus } from "lucide-react";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
 import { getTrackImage } from "@/hooks/useApi";
 import { useState } from "react";
+import AddToPlaylistModal from "./AddToPlaylistModal";
 
 import { Track } from "@/types/track";
 
@@ -46,6 +47,7 @@ const SongCard: React.FC<SongCardProps> = ({
   const { state } = useMusicPlayer();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
 
   const handleClick = () => {
     if (onClick) {
@@ -105,13 +107,27 @@ const SongCard: React.FC<SongCardProps> = ({
           )}
         </div>
         
-        {/* Play button */}
-        <button
-          onClick={handlePlayClick}
-          className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1db954] hover:bg-[#1ed760] rounded-full shadow-lg h-10 w-10 inline-flex items-center justify-center transform hover:scale-105 transition-transform"
-        >
-          <Play className="h-4 w-4 text-black fill-current" />
-        </button>
+        {/* Action buttons */}
+        <div className="absolute bottom-2 right-2 flex gap-2">
+          {/* Add to playlist button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowAddToPlaylist(true);
+            }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity bg-[#282828] hover:bg-[#404040] rounded-full shadow-lg h-8 w-8 inline-flex items-center justify-center transform hover:scale-105 transition-transform"
+          >
+            <Plus className="h-4 w-4 text-white" />
+          </button>
+          
+          {/* Play button */}
+          <button
+            onClick={handlePlayClick}
+            className="opacity-0 group-hover:opacity-100 transition-opacity bg-[#1db954] hover:bg-[#1ed760] rounded-full shadow-lg h-10 w-10 inline-flex items-center justify-center transform hover:scale-105 transition-transform"
+          >
+            <Play className="h-4 w-4 text-black fill-current" />
+          </button>
+        </div>
       </div>
       
       <div className="min-w-0">
@@ -124,6 +140,14 @@ const SongCard: React.FC<SongCardProps> = ({
         </h3>
         <p className="text-[#a7a7a7] text-sm truncate">{track.artist_name}</p>
       </div>
+
+      {/* Add to Playlist Modal */}
+      {showAddToPlaylist && (
+        <AddToPlaylistModal
+          track={track}
+          onClose={() => setShowAddToPlaylist(false)}
+        />
+      )}
     </div>
   );
 };

@@ -4,6 +4,7 @@ import { formatDuration, getTrackImage } from "@/hooks/useApi";
 import { LikedSong } from "@/contexts/LikedSongsContext";
 import { formatRelativeTime } from "@/utils/dateUtils";
 import HeartButton from "./HeartButton";
+import TrackContextMenu from "./TrackContextMenu";
 
 import { Track } from "@/types/track";
 
@@ -30,7 +31,7 @@ const TrackList: React.FC<TrackListProps> = ({
     if (state.currentTrack?.id === track.id) {
       togglePlay();
     } else {
-      playQueue(tracks, index, source);
+      playQueue(tracks, index);
     }
   };
 
@@ -163,15 +164,9 @@ const TrackList: React.FC<TrackListProps> = ({
                   variant="ghost"
                 />
               </div>
-              <button
-                className="h-8 w-8 text-[#a7a7a7] hover:text-white inline-flex items-center justify-center rounded hover:bg-white/10"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // More options functionality
-                }}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
+              <div onClick={(e) => e.stopPropagation()}>
+                <TrackContextMenu track={track} />
+              </div>
             </div>
           </div>
         ))}

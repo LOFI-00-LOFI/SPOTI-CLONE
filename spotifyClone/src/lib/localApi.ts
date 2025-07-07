@@ -33,10 +33,43 @@ export interface UploadTrackData {
   description?: string;
 }
 
+export interface Playlist {
+  _id: string;
+  name: string;
+  description: string;
+  image: string;
+  public_id: string;
+  tracks: LocalTrack[];
+  trackCount: number;
+  totalDuration: number;
+  isPublic: boolean;
+  createdBy: string;
+  backgroundColor: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePlaylistData {
+  name: string;
+  description?: string;
+  backgroundColor?: string;
+  isPublic?: boolean;
+}
+
+export interface PlaylistApiResponse<T> {
+  playlists?: T[];
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+  };
+}
+
 class LocalApi {
   private readonly baseUrl: string;
 
-  constructor(baseUrl: string = 'https://spotapi-ten.vercel.app/api') {
+  constructor(baseUrl: string = 'http://localhost:5000/api') {
     this.baseUrl = baseUrl;
   }
 
@@ -47,10 +80,15 @@ class LocalApi {
     try {
       console.log(`Making request to: ${this.baseUrl}${endpoint}`);
       
+      // Get auth token from localStorage
+      const token = localStorage.getItem('auth_token');
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+      
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         ...options,
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
           ...options.headers,
         },
       });
@@ -58,6 +96,13 @@ class LocalApi {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`API error: ${response.status} - ${response.statusText}`, errorText);
+        
+        // For 404 errors on playlist endpoints, return null instead of throwing
+        if (response.status === 404 && endpoint.includes('/playlists/')) {
+          console.warn(`Playlist not found: ${endpoint} - returning null`);
+          return null as T;
+        }
+        
         throw new Error(`API error: ${response.status} - ${response.statusText}`);
       }
 
@@ -240,6 +285,137 @@ class LocalApi {
     return this.makeRequest(`/audio/${trackId}`, {
       method: 'DELETE',
     });
+  }
+
+  // PLAYLIST METHODS
+
+  // Create new playlist
+  async createPlaylist(playlistData: CreatePlaylistData, imageFile?: File) {
+    const formData = new FormData();
+    
+    Object.entries(playlistData).forEach(([key, value]) => {
+      if (value !== undefined) {
+        formData.append(key, value.toString());
+      }
+    });
+
+    if (imageFile) {
+      formData.append('image', imageFile);
+    }
+
+    const response = await fetch(`${this.baseUrl}/playlists`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Create playlist failed: ${response.status} - ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Get all playlists
+  async getPlaylists(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  } = {}) {
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        queryParams.append(key, value.toString());
+      }
+    });
+
+    const response = await this.makeRequest<PlaylistApiResponse<Playlist>>(
+      `/playlists?${queryParams}`
+    );
+
+    return {
+      headers: {
+        status: 'success',
+        code: 200,
+        results_count: response.playlists?.length || 0,
+      },
+      playlists: response.playlists || [],
+      pagination: response.pagination,
+    };
+  }
+
+  // Get single playlist
+  async getPlaylistById(id: string) {
+    const response = await this.makeRequest<Playlist>(`/playlists/${id}`);
+    return response;
+  }
+
+  // Update playlist
+  async updatePlaylist(id: string, playlistData: Partial<CreatePlaylistData>, imageFile?: File) {
+    const formData = new FormData();
+    
+    Object.entries(playlistData).forEach(([key, value]) => {
+      if (value !== undefined) {
+        formData.append(key, value.toString());
+      }
+    });
+
+    if (imageFile) {
+      formData.append('image', imageFile);
+    }
+
+    const response = await fetch(`${this.baseUrl}/playlists/${id}`, {
+      method: 'PUT',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Update playlist failed: ${response.status} - ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  // Add track to playlist
+  async addTrackToPlaylist(playlistId: string, trackId: string) {
+    return this.makeRequest(`/playlists/${playlistId}/tracks`, {
+      method: 'POST',
+      body: JSON.stringify({ trackId }),
+    });
+  }
+
+  // Remove track from playlist
+  async removeTrackFromPlaylist(playlistId: string, trackId: string) {
+    return this.makeRequest(`/playlists/${playlistId}/tracks/${trackId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Reorder tracks in playlist
+  async reorderPlaylistTracks(playlistId: string, trackIds: string[]) {
+    return this.makeRequest(`/playlists/${playlistId}/tracks/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ trackIds }),
+    });
+  }
+
+  // Delete playlist
+  async deletePlaylist(playlistId: string) {
+    return this.makeRequest(`/playlists/${playlistId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Get featured playlists
+  async getFeaturedPlaylists(limit: number = 10) {
+    const response = await this.makeRequest<Playlist[]>(`/playlists/featured/all?limit=${limit}`);
+    return {
+      headers: {
+        status: 'success',
+        code: 200,
+        results_count: response.length,
+      },
+      playlists: response,
+    };
   }
 }
 
