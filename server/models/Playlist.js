@@ -12,7 +12,7 @@ const playlistSchema = new mongoose.Schema({
   trackCount: { type: Number, default: 0 },
   totalDuration: { type: Number, default: 0 }, // in seconds
   isPublic: { type: Boolean, default: true },
-  createdBy: { type: String, default: 'User' }, // In future, this can be user ID
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // User ID who created the playlist
   backgroundColor: { type: String, default: '' }, // hex color for default background
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

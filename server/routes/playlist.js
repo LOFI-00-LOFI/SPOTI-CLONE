@@ -56,6 +56,7 @@ router.post('/', authenticateToken, upload.single('image'), async (req, res) => 
       backgroundColor: backgroundColor || '#333333',
       isPublic: isPublic === 'true' || isPublic === true,
       tracks: [],
+      createdBy: req.user._id, // Assign to authenticated user
     });
 
     await newPlaylist.save();
@@ -66,7 +67,7 @@ router.post('/', authenticateToken, upload.single('image'), async (req, res) => 
   }
 });
 
-// Get all playlists with pagination
+// Get all public playlists with pagination (visible to everyone)
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -88,7 +89,8 @@ router.get('/', async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
-      .populate('tracks', 'title artist_name duration');
+      .populate('tracks', 'title artist_name duration')
+      .populate('createdBy', 'displayName');
 
     const total = await Playlist.countDocuments(query);
     
@@ -107,14 +109,76 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get single playlist by ID
+// Get user's own playlists (both public and private)
+router.get('/my/playlists', authenticateToken, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    const search = req.query.search || '';
+
+    let query = { createdBy: req.user._id };
+    
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { description: searchRegex }
+      ];
+    }
+
+    const playlists = await Playlist.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip(skip)
+      .populate('tracks', 'title artist_name duration')
+      .populate('createdBy', 'displayName');
+
+    const total = await Playlist.countDocuments(query);
+    
+    res.json({
+      playlists,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        itemsPerPage: limit
+      }
+    });
+  } catch (err) {
+    console.error('Get user playlists error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get single playlist by ID (with visibility checks)
 router.get('/:id', async (req, res) => {
   try {
     const playlist = await Playlist.findById(req.params.id)
-      .populate('tracks');
+      .populate('tracks')
+      .populate('createdBy', 'displayName');
     
     if (!playlist) {
       return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    // Check if user can view this playlist
+    const token = req.headers.authorization?.split(' ')[1];
+    let currentUserId = null;
+    
+    if (token) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        currentUserId = decoded.id;
+      } catch (err) {
+        // Token invalid, treat as unauthenticated
+      }
+    }
+
+    // If playlist is private and user is not the owner, deny access
+    if (!playlist.isPublic && (!currentUserId || currentUserId !== playlist.createdBy._id.toString())) {
+      return res.status(403).json({ error: 'Access denied. This playlist is private.' });
     }
     
     res.json(playlist);
@@ -132,6 +196,11 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
     
     if (!playlist) {
       return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    // Check if user owns this playlist
+    if (playlist.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'You can only edit your own playlists' });
     }
 
     // Update basic fields
@@ -168,7 +237,8 @@ router.put('/:id', authenticateToken, upload.single('image'), async (req, res) =
     
     // Return populated playlist
     const updatedPlaylist = await Playlist.findById(playlist._id)
-      .populate('tracks');
+      .populate('tracks')
+      .populate('createdBy', 'displayName');
     
     res.json(updatedPlaylist);
   } catch (err) {
@@ -191,6 +261,11 @@ router.post('/:id/tracks', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Playlist not found' });
     }
 
+    // Check if user owns this playlist
+    if (playlist.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'You can only add tracks to your own playlists' });
+    }
+
     const track = await Audio.findById(trackId);
     if (!track) {
       return res.status(404).json({ error: 'Track not found' });
@@ -206,7 +281,8 @@ router.post('/:id/tracks', authenticateToken, async (req, res) => {
 
     // Return updated playlist with populated tracks
     const updatedPlaylist = await Playlist.findById(playlist._id)
-      .populate('tracks');
+      .populate('tracks')
+      .populate('createdBy', 'displayName');
     
     res.json(updatedPlaylist);
   } catch (err) {
@@ -225,13 +301,19 @@ router.delete('/:id/tracks/:trackId', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Playlist not found' });
     }
 
+    // Check if user owns this playlist
+    if (playlist.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'You can only remove tracks from your own playlists' });
+    }
+
     // Remove track from playlist
     playlist.tracks = playlist.tracks.filter(track => track.toString() !== trackId);
     await playlist.save();
 
     // Return updated playlist with populated tracks
     const updatedPlaylist = await Playlist.findById(playlist._id)
-      .populate('tracks');
+      .populate('tracks')
+      .populate('createdBy', 'displayName');
     
     res.json(updatedPlaylist);
   } catch (err) {
@@ -254,6 +336,11 @@ router.put('/:id/tracks/reorder', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Playlist not found' });
     }
 
+    // Check if user owns this playlist
+    if (playlist.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'You can only reorder tracks in your own playlists' });
+    }
+
     // Verify all track IDs exist in the playlist
     const playlistTrackIds = playlist.tracks.map(id => id.toString());
     const validTrackIds = trackIds.filter(id => playlistTrackIds.includes(id.toString()));
@@ -267,7 +354,8 @@ router.put('/:id/tracks/reorder', authenticateToken, async (req, res) => {
 
     // Return updated playlist with populated tracks
     const updatedPlaylist = await Playlist.findById(playlist._id)
-      .populate('tracks');
+      .populate('tracks')
+      .populate('createdBy', 'displayName');
     
     res.json(updatedPlaylist);
   } catch (err) {
@@ -282,6 +370,11 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     const playlist = await Playlist.findById(req.params.id);
     if (!playlist) {
       return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    // Check if user owns this playlist
+    if (playlist.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'You can only delete your own playlists' });
     }
 
     // Delete playlist image from cloudinary if exists
