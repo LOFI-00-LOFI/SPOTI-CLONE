@@ -4,6 +4,8 @@ import { useToast } from './ToastContext';
 
 interface PlaylistState {
   playlists: Playlist[];
+  publicPlaylists: Playlist[];
+  userPlaylists: Playlist[];
   currentPlaylist: Playlist | null;
   isLoading: boolean;
   error: string | null;
@@ -13,6 +15,8 @@ type PlaylistAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_PLAYLISTS'; payload: Playlist[] }
+  | { type: 'SET_PUBLIC_PLAYLISTS'; payload: Playlist[] }
+  | { type: 'SET_USER_PLAYLISTS'; payload: Playlist[] }
   | { type: 'ADD_PLAYLIST'; payload: Playlist }
   | { type: 'UPDATE_PLAYLIST'; payload: Playlist }
   | { type: 'DELETE_PLAYLIST'; payload: string }
@@ -20,6 +24,8 @@ type PlaylistAction =
 
 const initialState: PlaylistState = {
   playlists: [],
+  publicPlaylists: [],
+  userPlaylists: [],
   currentPlaylist: null,
   isLoading: false,
   error: null,
@@ -35,6 +41,26 @@ function playlistReducer(state: PlaylistState, action: PlaylistAction): Playlist
     
     case 'SET_PLAYLISTS':
       return { ...state, playlists: action.payload, isLoading: false, error: null };
+    
+    case 'SET_PUBLIC_PLAYLISTS':
+      const combinedWithPublic = [...action.payload, ...state.userPlaylists];
+      return {
+        ...state,
+        publicPlaylists: action.payload,
+        playlists: combinedWithPublic,
+        isLoading: false,
+        error: null
+      };
+    
+    case 'SET_USER_PLAYLISTS':
+      const combinedWithUser = [...state.publicPlaylists, ...action.payload];
+      return {
+        ...state,
+        userPlaylists: action.payload,
+        playlists: combinedWithUser,
+        isLoading: false,
+        error: null
+      };
     
     case 'ADD_PLAYLIST':
       return { 
@@ -100,7 +126,7 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       const response = await localApi.getPlaylists({ limit: 100 });
-      dispatch({ type: 'SET_PLAYLISTS', payload: response.playlists });
+      dispatch({ type: 'SET_PUBLIC_PLAYLISTS', payload: response.playlists });
     } catch (error) {
       console.error('Failed to load playlists:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load playlists';
@@ -114,7 +140,7 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       const response = await localApi.getMyPlaylists({ limit: 100 });
-      dispatch({ type: 'SET_PLAYLISTS', payload: response.playlists });
+      dispatch({ type: 'SET_USER_PLAYLISTS', payload: response.playlists });
     } catch (error) {
       console.error('Failed to load my playlists:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to load my playlists';

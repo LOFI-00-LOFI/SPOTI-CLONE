@@ -45,7 +45,7 @@ export interface Playlist {
   trackCount: number;
   totalDuration: number;
   isPublic: boolean;
-  createdBy: string;
+  createdBy: string | { _id: string; displayName: string };
   backgroundColor: string;
   createdAt: string;
   updatedAt: string;

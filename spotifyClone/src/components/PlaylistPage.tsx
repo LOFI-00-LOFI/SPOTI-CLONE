@@ -250,7 +250,11 @@ const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
               </p>
             )}
             <div className="flex items-center text-sm text-white">
-              <span className="font-semibold">{playlist.createdBy}</span>
+              <span className="font-semibold">
+                {typeof playlist.createdBy === 'string'
+                  ? playlist.createdBy
+                  : playlist.createdBy?.displayName || 'Unknown'}
+              </span>
               <span className="mx-2">•</span>
               <span className="font-normal">
                 {searchQuery 

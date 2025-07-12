@@ -74,10 +74,8 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
     setCurrentView('playlist', playlistId);
   };
 
-  // Filter public playlists
-  const publicPlaylists = playlistState.playlists.filter(playlist =>
-    playlist.isPublic !== false
-  );
+  // Use public playlists directly from state
+  const publicPlaylists = playlistState.publicPlaylists;
 
   return (
     <div 
