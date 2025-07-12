@@ -1,5 +1,6 @@
 import { Play, Plus } from "lucide-react";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { getTrackImage } from "@/hooks/useApi";
 import { useState } from "react";
 import AddToPlaylistModal from "./AddToPlaylistModal";
@@ -45,6 +46,7 @@ const SongCard: React.FC<SongCardProps> = ({
   onClick,
 }) => {
   const { state } = useMusicPlayer();
+  const { requireAuth } = useAuthPrompt();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
@@ -79,16 +81,16 @@ const SongCard: React.FC<SongCardProps> = ({
 
   return (
     <div
-      className="group hover:bg-[#282828] rounded-lg p-4 transition-all duration-300 cursor-pointer"
+      className="group hover:bg-[#181818] rounded-lg p-4 transition-all duration-300 cursor-pointer hover:shadow-lg"
       onClick={handleClick}
       onMouseEnter={() => onHover?.(index)}
       onMouseLeave={onLeave}
     >
       <div className="relative mb-4">
-        <div className="w-full aspect-square rounded-lg overflow-hidden relative">
+        <div className="w-full aspect-square rounded-lg overflow-hidden relative shadow-lg">
           {/* Default gradient background */}
           <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} flex items-center justify-center`}>
-            <div className="text-white text-2xl font-bold opacity-80">
+            <div className="text-white text-2xl font-bold opacity-90">
               {track.name.charAt(0).toUpperCase()}
             </div>
           </div>
@@ -113,9 +115,11 @@ const SongCard: React.FC<SongCardProps> = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setShowAddToPlaylist(true);
+              requireAuth('playlist', () => {
+                setShowAddToPlaylist(true);
+              }, track.name);
             }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity bg-[#282828] hover:bg-[#404040] rounded-full shadow-lg h-8 w-8 inline-flex items-center justify-center transform hover:scale-105 transition-transform"
+            className="opacity-0 group-hover:opacity-100 transition-all duration-200 bg-[#000000b3] hover:bg-[#000000e6] backdrop-blur-sm rounded-full shadow-2xl h-8 w-8 inline-flex items-center justify-center transform hover:scale-110 transition-transform"
           >
             <Plus className="h-4 w-4 text-white" />
           </button>
@@ -123,22 +127,24 @@ const SongCard: React.FC<SongCardProps> = ({
           {/* Play button */}
           <button
             onClick={handlePlayClick}
-            className="opacity-0 group-hover:opacity-100 transition-opacity bg-[#1db954] hover:bg-[#1ed760] rounded-full shadow-lg h-10 w-10 inline-flex items-center justify-center transform hover:scale-105 transition-transform"
+            className="opacity-0 group-hover:opacity-100 transition-all duration-200 bg-[#1db954] hover:bg-[#1ed760] rounded-full shadow-2xl h-12 w-12 inline-flex items-center justify-center transform hover:scale-110 transition-transform"
           >
-            <Play className="h-4 w-4 text-black fill-current" />
+            <Play className="h-5 w-5 text-black fill-current ml-0.5" />
           </button>
         </div>
       </div>
       
       <div className="min-w-0">
         <h3
-          className={`font-semibold mb-2 truncate ${
+          className={`font-semibold mb-1 truncate text-base ${
             isCurrentTrack ? "text-[#1db954]" : "text-white"
           }`}
         >
           {track.name}
         </h3>
-        <p className="text-[#a7a7a7] text-sm truncate">{track.artist_name}</p>
+        <p className="text-[#a7a7a7] text-sm truncate hover:text-white transition-colors cursor-pointer">
+          {track.artist_name}
+        </p>
       </div>
 
       {/* Add to Playlist Modal */}

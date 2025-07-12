@@ -1,3 +1,5 @@
+import axios, { AxiosInstance, AxiosResponse } from 'axios';
+
 // Local API for our custom audio upload server
 export interface LocalTrack {
   _id: string;
@@ -67,50 +69,83 @@ export interface PlaylistApiResponse<T> {
 }
 
 class LocalApi {
-  private readonly baseUrl: string;
+  private readonly axiosInstance: AxiosInstance;
 
   constructor(baseUrl: string = 'http://localhost:5000/api') {
-    this.baseUrl = baseUrl;
+    this.axiosInstance = axios.create({
+      baseURL: baseUrl,
+      timeout: 30000, // 30 seconds timeout
+    });
+
+    // Add request interceptor to include auth token
+    this.axiosInstance.interceptors.request.use(
+      (config) => {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => {
+        return Promise.reject(error);
+      }
+    );
+
+    // Add response interceptor to handle common errors
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        console.error('API Error:', error.response?.data || error.message);
+        
+        // For 404 errors on playlist endpoints, return null instead of throwing
+        if (error.response?.status === 404 && error.config?.url?.includes('/playlists/')) {
+          console.warn(`Playlist not found: ${error.config.url} - returning null`);
+          return Promise.resolve({ data: null });
+        }
+        
+        return Promise.reject(error);
+      }
+    );
   }
 
   private async makeRequest<T>(
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     endpoint: string,
-    options: RequestInit = {}
+    data?: any,
+    config?: any
   ): Promise<T> {
     try {
-      console.log(`Making request to: ${this.baseUrl}${endpoint}`);
+      console.log(`Making ${method} request to: ${endpoint}`);
       
-      // Get auth token from localStorage
-      const token = localStorage.getItem('auth_token');
-      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+      let response: AxiosResponse<T>;
       
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-          ...options.headers,
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`API error: ${response.status} - ${response.statusText}`, errorText);
-        
-        // For 404 errors on playlist endpoints, return null instead of throwing
-        if (response.status === 404 && endpoint.includes('/playlists/')) {
-          console.warn(`Playlist not found: ${endpoint} - returning null`);
-          return null as T;
-        }
-        
-        throw new Error(`API error: ${response.status} - ${response.statusText}`);
+      switch (method) {
+        case 'GET':
+          response = await this.axiosInstance.get(endpoint, config);
+          break;
+        case 'POST':
+          response = await this.axiosInstance.post(endpoint, data, config);
+          break;
+        case 'PUT':
+          response = await this.axiosInstance.put(endpoint, data, config);
+          break;
+        case 'DELETE':
+          response = await this.axiosInstance.delete(endpoint, config);
+          break;
+        default:
+          throw new Error(`Unsupported HTTP method: ${method}`);
       }
 
-      const data = await response.json();
-      console.log(`Response from ${endpoint}:`, data);
-      return data;
-    } catch (error) {
+      console.log(`Response from ${endpoint}:`, response.data);
+      return response.data;
+    } catch (error: any) {
       console.error(`Request failed for ${endpoint}:`, error);
+      
+      // If it's a 404 for playlist endpoints, return null
+      if (error.response?.status === 404 && endpoint.includes('/playlists/')) {
+        return null as T;
+      }
+      
       throw error;
     }
   }
@@ -153,6 +188,7 @@ class LocalApi {
     });
 
     const response = await this.makeRequest<LocalApiResponse<LocalTrack>>(
+      'GET',
       `/audio?${queryParams}`
     );
 
@@ -174,7 +210,7 @@ class LocalApi {
 
   // Get featured tracks
   async getFeaturedTracks(limit: number = 20) {
-    const response = await this.makeRequest<LocalTrack[]>(`/audio/featured?limit=${limit}`);
+    const response = await this.makeRequest<LocalTrack[]>('GET', `/audio/featured?limit=${limit}`);
     return {
       headers: {
         status: 'success',
@@ -187,7 +223,7 @@ class LocalApi {
 
   // Get new releases
   async getNewReleases(limit: number = 20) {
-    const response = await this.makeRequest<LocalTrack[]>(`/audio/new-releases?limit=${limit}`);
+    const response = await this.makeRequest<LocalTrack[]>('GET', `/audio/new-releases?limit=${limit}`);
     return {
       headers: {
         status: 'success',
@@ -200,7 +236,7 @@ class LocalApi {
 
   // Get tracks by genre
   async getTracksByGenre(genre: string, limit: number = 20) {
-    const response = await this.makeRequest<LocalTrack[]>(`/audio/genre/${genre}?limit=${limit}`);
+    const response = await this.makeRequest<LocalTrack[]>('GET', `/audio/genre/${genre}?limit=${limit}`);
     return {
       headers: {
         status: 'success',
@@ -213,7 +249,7 @@ class LocalApi {
 
   // Get single track
   async getTrackById(id: string) {
-    const response = await this.makeRequest<LocalTrack>(`/audio/${id}`);
+    const response = await this.makeRequest<LocalTrack>('GET', `/audio/${id}`);
     return {
       headers: {
         status: 'success',
@@ -238,16 +274,11 @@ class LocalApi {
       }
     });
 
-    const response = await fetch(`${this.baseUrl}/audio/upload`, {
-      method: 'POST',
-      body: formData,
+    return await this.makeRequest('POST', '/audio/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
-
-    if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status} - ${response.statusText}`);
-    }
-
-    return response.json();
   }
 
   // Upload multiple tracks
@@ -268,23 +299,16 @@ class LocalApi {
       });
     });
 
-    const response = await fetch(`${this.baseUrl}/audio/upload-multiple`, {
-      method: 'POST',
-      body: formData,
+    return await this.makeRequest('POST', '/audio/upload-multiple', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
-
-    if (!response.ok) {
-      throw new Error(`Multiple upload failed: ${response.status} - ${response.statusText}`);
-    }
-
-    return response.json();
   }
 
   // Delete track
   async deleteTrack(trackId: string) {
-    return this.makeRequest(`/audio/${trackId}`, {
-      method: 'DELETE',
-    });
+    return this.makeRequest('DELETE', `/audio/${trackId}`);
   }
 
   // PLAYLIST METHODS
@@ -303,19 +327,14 @@ class LocalApi {
       formData.append('image', imageFile);
     }
 
-    const response = await fetch(`${this.baseUrl}/playlists`, {
-      method: 'POST',
-      body: formData,
+    return await this.makeRequest('POST', '/playlists', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
-
-    if (!response.ok) {
-      throw new Error(`Create playlist failed: ${response.status} - ${response.statusText}`);
-    }
-
-    return response.json();
   }
 
-  // Get all playlists
+  // Get all public playlists
   async getPlaylists(params: {
     page?: number;
     limit?: number;
@@ -329,7 +348,37 @@ class LocalApi {
     });
 
     const response = await this.makeRequest<PlaylistApiResponse<Playlist>>(
+      'GET',
       `/playlists?${queryParams}`
+    );
+
+    return {
+      headers: {
+        status: 'success',
+        code: 200,
+        results_count: response.playlists?.length || 0,
+      },
+      playlists: response.playlists || [],
+      pagination: response.pagination,
+    };
+  }
+
+  // Get user's own playlists (both public and private)
+  async getMyPlaylists(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  } = {}) {
+    const queryParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        queryParams.append(key, value.toString());
+      }
+    });
+
+    const response = await this.makeRequest<PlaylistApiResponse<Playlist>>(
+      'GET',
+      `/playlists/my/playlists?${queryParams}`
     );
 
     return {
@@ -345,7 +394,7 @@ class LocalApi {
 
   // Get single playlist
   async getPlaylistById(id: string) {
-    const response = await this.makeRequest<Playlist>(`/playlists/${id}`);
+    const response = await this.makeRequest<Playlist>('GET', `/playlists/${id}`);
     return response;
   }
 
@@ -363,51 +412,36 @@ class LocalApi {
       formData.append('image', imageFile);
     }
 
-    const response = await fetch(`${this.baseUrl}/playlists/${id}`, {
-      method: 'PUT',
-      body: formData,
+    return await this.makeRequest('PUT', `/playlists/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
-
-    if (!response.ok) {
-      throw new Error(`Update playlist failed: ${response.status} - ${response.statusText}`);
-    }
-
-    return response.json();
   }
 
   // Add track to playlist
   async addTrackToPlaylist(playlistId: string, trackId: string) {
-    return this.makeRequest(`/playlists/${playlistId}/tracks`, {
-      method: 'POST',
-      body: JSON.stringify({ trackId }),
-    });
+    return this.makeRequest('POST', `/playlists/${playlistId}/tracks`, { trackId });
   }
 
   // Remove track from playlist
   async removeTrackFromPlaylist(playlistId: string, trackId: string) {
-    return this.makeRequest(`/playlists/${playlistId}/tracks/${trackId}`, {
-      method: 'DELETE',
-    });
+    return this.makeRequest('DELETE', `/playlists/${playlistId}/tracks/${trackId}`);
   }
 
   // Reorder tracks in playlist
   async reorderPlaylistTracks(playlistId: string, trackIds: string[]) {
-    return this.makeRequest(`/playlists/${playlistId}/tracks/reorder`, {
-      method: 'PUT',
-      body: JSON.stringify({ trackIds }),
-    });
+    return this.makeRequest('PUT', `/playlists/${playlistId}/tracks/reorder`, { trackIds });
   }
 
   // Delete playlist
   async deletePlaylist(playlistId: string) {
-    return this.makeRequest(`/playlists/${playlistId}`, {
-      method: 'DELETE',
-    });
+    return this.makeRequest('DELETE', `/playlists/${playlistId}`);
   }
 
   // Get featured playlists
   async getFeaturedPlaylists(limit: number = 10) {
-    const response = await this.makeRequest<Playlist[]>(`/playlists/featured/all?limit=${limit}`);
+    const response = await this.makeRequest<Playlist[]>('GET', `/playlists/featured/all?limit=${limit}`);
     return {
       headers: {
         status: 'success',

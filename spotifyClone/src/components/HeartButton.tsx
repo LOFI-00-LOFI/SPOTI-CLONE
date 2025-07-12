@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Heart } from 'lucide-react';
 import { Track } from '@/types/track';
 import { useLikedSongs } from '@/contexts/LikedSongsContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAuthPrompt } from '@/contexts/AuthPromptContext';
 
 interface HeartButtonProps {
   track: Track;
@@ -19,11 +21,13 @@ const HeartButton: React.FC<HeartButtonProps> = ({
   showTooltip = true 
 }) => {
   const { isLiked, toggleLike } = useLikedSongs();
+  const { isAuthenticated } = useAuth();
+  const { requireAuth } = useAuthPrompt();
   const [isAnimating, setIsAnimating] = useState(false);
-  const liked = isLiked(track.id);
+  const liked = isAuthenticated ? isLiked(track.id) : false;
   
   // Debug: Log when liked state changes
-  console.log(`HeartButton for ${track.name}: liked=${liked}`);
+  console.log(`HeartButton for ${track.name}: liked=${liked}, authenticated=${isAuthenticated}`);
 
   const getSizeClasses = () => {
     switch (size) {
@@ -52,11 +56,19 @@ const HeartButton: React.FC<HeartButtonProps> = ({
       e.stopPropagation();
     }
     
-    setIsAnimating(true);
-    toggleLike(track);
+    const actualToggleLike = () => {
+      setIsAnimating(true);
+      toggleLike(track);
+      
+      // Reset animation after it completes
+      setTimeout(() => setIsAnimating(false), 300);
+    };
     
-    // Reset animation after it completes
-    setTimeout(() => setIsAnimating(false), 300);
+    if (isAuthenticated) {
+      actualToggleLike();
+    } else {
+      requireAuth('like', actualToggleLike, track.name);
+    }
   };
 
   return (

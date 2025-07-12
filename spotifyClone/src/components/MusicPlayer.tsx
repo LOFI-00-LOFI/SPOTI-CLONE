@@ -1,5 +1,7 @@
 import { Music, Pause, Play, Repeat, Shuffle, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { formatDuration, getTrackImage } from "@/hooks/useApi";
 import HeartButton from "./HeartButton";
 
@@ -67,6 +69,8 @@ const CustomSlider = ({ value, max, step, onValueChange, className }: CustomSlid
 
 const MusicPlayer = () => {
   const { state, togglePlay, nextTrack, previousTrack, seekTo, setVolume, toggleShuffle, toggleRepeat } = useMusicPlayer();
+  const { isAuthenticated } = useAuth();
+  const { requireAuth } = useAuthPrompt();
 
   const handleSeek = (value: number[]) => {
     const newTime = (value[0] / 100) * state.duration;
@@ -79,6 +83,15 @@ const MusicPlayer = () => {
     const newVolume = value[0] / 100;
     if (!isNaN(newVolume) && newVolume >= 0 && newVolume <= 1) {
       setVolume(newVolume);
+    }
+  };
+
+  const handleTogglePlay = () => {
+    // If trying to play (not pause), require authentication
+    if (!state.isPlaying && !isAuthenticated) {
+      requireAuth('play', () => togglePlay(), state.currentTrack?.name);
+    } else {
+      togglePlay();
     }
   };
 
@@ -95,17 +108,17 @@ const MusicPlayer = () => {
   }
 
   return (
-    <div className="bg-[#0a0a0a] border-t border-[#1a1a1a] px-6 py-3">
+    <div className="bg-[#0a0a0a] border-t border-[#282828] px-6 py-3">
       <div className="flex items-center justify-between max-w-full">
         {/* Currently playing */}
         <div className="flex items-center space-x-4 w-1/3 min-w-0">
         
-          <div className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden shadow-lg">
+          <div className="w-14 h-14 rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden shadow-lg">
             {state.currentTrack.album_image || state.currentTrack.image ? (
               <img
                 src={getTrackImage(state.currentTrack)}
                 alt={state.currentTrack.album_name}
-                className="w-full h-full object-cover rounded-lg"
+                className="w-full h-full object-cover rounded-md"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.style.display = 'none';
@@ -114,7 +127,7 @@ const MusicPlayer = () => {
                 }}
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center rounded-lg">
+              <div className="w-full h-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center rounded-md">
                 <Music className="h-5 w-5 text-white" />
               </div>
             )}
@@ -123,21 +136,29 @@ const MusicPlayer = () => {
           <div className="min-w-0 flex items-center space-x-3">
             <div className="min-w-0">
               <div className="flex items-center space-x-2">
-                <p className="text-white text-sm font-medium truncate">{state.currentTrack.name}</p>
+                <p className="text-white text-sm font-medium truncate hover:underline cursor-pointer">
+                  {state.currentTrack.name}
+                </p>
                 {state.isPlaying && (
-                  <div className="w-2 h-2 bg-[#1db954] rounded-full animate-pulse flex-shrink-0"></div>
+                  <div className="flex space-x-1">
+                    <div className="w-1 h-3 bg-[#1db954] rounded-full animate-pulse"></div>
+                    <div className="w-1 h-2 bg-[#1db954] rounded-full animate-pulse" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-1 h-4 bg-[#1db954] rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
                 )}
               </div>
-              <p className="text-[#b3b3b3] text-xs truncate mt-0.5">
-                Music video • {state.currentTrack.artist_name}
+              <p className="text-[#a7a7a7] text-xs truncate mt-0.5 hover:text-white hover:underline cursor-pointer transition-colors">
+                {state.currentTrack.artist_name}
               </p>
             </div>
-            <HeartButton 
-              track={state.currentTrack} 
-              size="sm" 
-              variant="ghost" 
-              className="flex-shrink-0 opacity-70 hover:opacity-100 transition-opacity"
-            />
+            {isAuthenticated && (
+              <HeartButton
+                track={state.currentTrack}
+                size="sm"
+                variant="ghost"
+                className="flex-shrink-0 opacity-70 hover:opacity-100 transition-opacity"
+              />
+            )}
           </div>
         </div>
 
@@ -159,7 +180,7 @@ const MusicPlayer = () => {
               <SkipBack className="h-4 w-4 fill-current" />
             </button>
             <button
-              onClick={togglePlay}
+              onClick={handleTogglePlay}
               className="bg-white hover:bg-gray-100 text-black h-10 w-10 rounded-full inline-flex items-center justify-center transition-all duration-200 shadow-lg hover:scale-105"
             >
               {state.isPlaying ? (

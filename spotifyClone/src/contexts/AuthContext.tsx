@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import axios from 'axios';
 
 // Types
 interface User {
@@ -51,18 +52,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const storedUser = JSON.parse(userStr);
             
             // Verify token is still valid by calling /me endpoint
-            const response = await fetch(`${API_BASE_URL}/auth/me`, {
-              headers: {
-                'Authorization': `Bearer ${storedToken}`,
-                'Content-Type': 'application/json'
-              }
-            });
+            try {
+              const response = await axios.get(`${API_BASE_URL}/auth/me`, {
+                headers: {
+                  'Authorization': `Bearer ${storedToken}`,
+                  'Content-Type': 'application/json'
+                }
+              });
 
-            if (response.ok) {
-              const data = await response.json();
-              setUser(data.user);
-              setToken(storedToken);
-            } else {
+              if (response.data) {
+                setUser(response.data.user);
+                setToken(storedToken);
+              }
+            } catch (error) {
               // Token is invalid, clear stored data
               localStorage.removeItem('auth_token');
               localStorage.removeItem('auth_user');
@@ -89,21 +91,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ emailOrUsername, password }),
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
+        emailOrUsername,
+        password,
       });
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+      // Validate response data
+      if (!data.token || !data.user) {
+        throw new Error('Invalid response from server - missing token or user data');
       }
 
-      // Store in localStorage
+      // Validate user data
+      if (!data.user.id || !data.user.email || !data.user.displayName) {
+        throw new Error('Invalid user data received from server');
+      }
+
+      // Validate token format (should be a non-empty string)
+      if (typeof data.token !== 'string' || data.token.trim().length === 0) {
+        throw new Error('Invalid token received from server');
+      }
+
+      // Store in localStorage only after validation
       localStorage.setItem('auth_token', data.token);
       localStorage.setItem('auth_user', JSON.stringify(data.user));
 
@@ -112,9 +122,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setToken(data.token);
       setLoading(false);
     } catch (error: any) {
-      setError(error.message);
+      // Clear any potentially invalid data
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      setUser(null);
+      setToken(null);
+      const errorMessage = error.response?.data?.error || error.message || 'Login failed';
+      setError(errorMessage);
       setLoading(false);
-      throw error;
+      throw new Error(errorMessage);
     }
   };
 
@@ -131,27 +147,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          displayName,
-          dateOfBirth,
-          gender,
-        }),
+      const response = await axios.post(`${API_BASE_URL}/auth/signup`, {
+        email,
+        password,
+        displayName,
+        dateOfBirth,
+        gender,
       });
 
-      const data = await response.json();
+      const data = response.data;
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Signup failed');
+      // Validate response data
+      if (!data.token || !data.user) {
+        throw new Error('Invalid response from server - missing token or user data');
       }
 
-      // Store in localStorage
+      // Validate user data
+      if (!data.user.id || !data.user.email || !data.user.displayName) {
+        throw new Error('Invalid user data received from server');
+      }
+
+      // Validate token format (should be a non-empty string)
+      if (typeof data.token !== 'string' || data.token.trim().length === 0) {
+        throw new Error('Invalid token received from server');
+      }
+
+      // Store in localStorage only after validation
       localStorage.setItem('auth_token', data.token);
       localStorage.setItem('auth_user', JSON.stringify(data.user));
 
@@ -160,9 +181,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setToken(data.token);
       setLoading(false);
     } catch (error: any) {
-      setError(error.message);
+      // Clear any potentially invalid data
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      setUser(null);
+      setToken(null);
+      const errorMessage = error.response?.data?.error || error.message || 'Signup failed';
+      setError(errorMessage);
       setLoading(false);
-      throw error;
+      throw new Error(errorMessage);
     }
   };
 

@@ -1,17 +1,36 @@
 import { Heart, Music, Search, Plus, PlayCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
 import { useLikedSongs } from "@/contexts/LikedSongsContext";
 import { usePlaylist } from "@/contexts/PlaylistContext";
 import { useNavigation } from "@/pages/Index";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import CreatePlaylistModal from "./CreatePlaylistModal";
 
 const Sidebar = () => {
   const { state } = useMusicPlayer();
   const { likedCount } = useLikedSongs();
-  const { state: playlistState } = usePlaylist();
+  const { state: playlistState, loadMyPlaylists } = usePlaylist();
   const { setCurrentView } = useNavigation();
+  const { isAuthenticated } = useAuth();
+  const { requireAuth } = useAuthPrompt();
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Load user's playlists when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadMyPlaylists();
+    }
+  }, [isAuthenticated]); // Remove loadMyPlaylists dependency to prevent infinite loop
+
+  const handleLikedSongsClick = () => {
+    requireAuth('like', () => setCurrentView('liked-songs'));
+  };
+
+  const handleCreatePlaylistClick = () => {
+    requireAuth('playlist', () => setShowCreateModal(true));
+  };
 
   return (
     <div className="w-80 bg-[#121212] text-white h-full flex flex-col rounded-xl">
@@ -40,9 +59,9 @@ const Sidebar = () => {
       {/* Content */}
       <div className="flex-1 px-2 overflow-y-auto">
         {/* Liked Songs */}
-        <div 
+        <div
           className="flex items-center space-x-3 p-2 rounded-md hover:bg-[#1a1a1a] cursor-pointer group transition-colors"
-          onClick={() => setCurrentView('liked-songs')}
+          onClick={handleLikedSongsClick}
         >
           <div className="w-12 h-12 rounded bg-gradient-to-br from-purple-700 to-blue-300 flex items-center justify-center flex-shrink-0">
             <Heart className="h-6 w-6 text-white fill-white" />
@@ -50,15 +69,15 @@ const Sidebar = () => {
           <div className="flex-1 min-w-0">
             <p className="text-white text-sm font-medium truncate">Liked Songs</p>
             <p className="text-[#a7a7a7] text-xs truncate">
-              Playlist • {likedCount} song{likedCount !== 1 ? 's' : ''}
+              Playlist • {isAuthenticated ? likedCount : 0} song{likedCount !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
 
         {/* Create Playlist Button */}
         <div className="mt-4 mb-4">
-          <button 
-            onClick={() => setShowCreateModal(true)}
+          <button
+            onClick={handleCreatePlaylistClick}
             className="flex items-center space-x-3 p-2 rounded-md hover:bg-[#1a1a1a] cursor-pointer group transition-colors w-full text-left"
           >
             <div className="w-12 h-12 rounded bg-[#282828] flex items-center justify-center flex-shrink-0 group-hover:bg-[#404040] transition-colors">
@@ -72,10 +91,10 @@ const Sidebar = () => {
         </div>
 
         {/* User Playlists */}
-        {playlistState.playlists.length > 0 ? (
+        {isAuthenticated && playlistState.playlists.length > 0 ? (
           <div className="space-y-1">
             {playlistState.playlists.map((playlist) => (
-              <div 
+              <div
                 key={playlist._id}
                 className="flex items-center space-x-3 p-2 rounded-md hover:bg-[#1a1a1a] cursor-pointer group transition-colors"
                 onClick={() => {
@@ -84,13 +103,13 @@ const Sidebar = () => {
               >
                 <div className="w-12 h-12 rounded flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {playlist.image ? (
-                    <img 
-                      src={playlist.image} 
+                    <img
+                      src={playlist.image}
                       alt={playlist.name}
                       className="w-full h-full object-cover rounded"
                     />
                   ) : (
-                    <div 
+                    <div
                       className="w-full h-full flex items-center justify-center rounded"
                       style={{ backgroundColor: playlist.backgroundColor }}
                     >
@@ -107,12 +126,23 @@ const Sidebar = () => {
               </div>
             ))}
           </div>
+        ) : !isAuthenticated ? (
+          <div className="mt-6 text-center py-8">
+            <div className="text-[#a7a7a7] text-sm mb-2">Create your first playlist</div>
+            <p className="text-[#b3b3b3] text-xs">It's easy, we'll help you</p>
+            <button
+              onClick={handleCreatePlaylistClick}
+              className="mt-4 bg-white text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors"
+            >
+              Create playlist
+            </button>
+          </div>
         ) : (
           <div className="mt-6 text-center py-8">
             <div className="text-[#a7a7a7] text-sm mb-2">Create your first playlist</div>
             <p className="text-[#b3b3b3] text-xs">It's easy, we'll help you</p>
-            <button 
-              onClick={() => setShowCreateModal(true)}
+            <button
+              onClick={handleCreatePlaylistClick}
               className="mt-4 bg-white text-black px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors"
             >
               Create playlist

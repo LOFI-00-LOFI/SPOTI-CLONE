@@ -1,6 +1,8 @@
 import { Play, Pause, MoreHorizontal, Clock, X } from "lucide-react";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
 import { usePlaylist } from "@/contexts/PlaylistContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { formatDuration, getTrackImage } from "@/hooks/useApi";
 import { useState } from "react";
 import HeartButton from "./HeartButton";
@@ -24,13 +26,25 @@ const PlaylistTrackList: React.FC<PlaylistTrackListProps> = ({
 }) => {
   const { state, playQueue, togglePlay } = useMusicPlayer();
   const { removeTrackFromPlaylist } = usePlaylist();
+  const { isAuthenticated } = useAuth();
+  const { requireAuth } = useAuthPrompt();
   const [removingTrackId, setRemovingTrackId] = useState<string | null>(null);
 
   const handlePlayTrack = (track: Track, index: number) => {
     if (state.currentTrack?.id === track.id) {
-      togglePlay();
+      // If trying to play (not pause), require authentication
+      if (!state.isPlaying && !isAuthenticated) {
+        requireAuth('play', () => togglePlay(), track.name);
+      } else {
+        togglePlay();
+      }
     } else {
-      playQueue(tracks, index);
+      // Playing a new track - require authentication
+      if (!isAuthenticated) {
+        requireAuth('play', () => playQueue(tracks, index), track.name);
+      } else {
+        playQueue(tracks, index);
+      }
     }
   };
 

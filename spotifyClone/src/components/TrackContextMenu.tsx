@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Heart, Plus, MoreHorizontal, Share, Download, Info } from 'lucide-react';
 import { Track } from '@/types/track';
 import { LikedSong } from '@/contexts/LikedSongsContext';
+import { useAuthPrompt } from '@/contexts/AuthPromptContext';
 import AddToPlaylistModal from './AddToPlaylistModal';
 import HeartButton from './HeartButton';
 
@@ -21,6 +22,7 @@ const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
   trigger,
   className = ''
 }) => {
+  const { requireAuth } = useAuthPrompt();
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
   const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
@@ -90,7 +92,9 @@ const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
       label: 'Add to playlist',
       onClick: (e: React.MouseEvent) => {
         e.stopPropagation();
-        setShowAddToPlaylist(true);
+        requireAuth('playlist', () => {
+          setShowAddToPlaylist(true);
+        }, track.name);
         setIsOpen(false);
       }
     },
@@ -143,7 +147,7 @@ const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
       {isOpen && (
         <div
           ref={menuRef}
-          className="fixed bg-[#282828] border border-[#404040] rounded-md shadow-2xl py-2 w-56 z-[100]"
+          className="fixed bg-[#282828] border border-[#404040] rounded-lg shadow-2xl py-2 w-60 z-[100] animate-fade-in"
           style={{
             left: `${position.x}px`,
             top: `${position.y}px`,
@@ -151,13 +155,13 @@ const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
           onClick={(e) => e.stopPropagation()}
         >
           {/* Like/Unlike - Special treatment */}
-          <div className="px-3 py-2 hover:bg-[#404040] transition-colors">
+          <div className="px-4 py-3 hover:bg-[#404040] transition-colors cursor-pointer">
             <div className="flex items-center gap-3">
-                             <HeartButton 
-                 track={track} 
-                 size="sm" 
-                 variant="ghost"
-               />
+              <HeartButton
+                track={track}
+                size="sm"
+                variant="ghost"
+              />
             </div>
           </div>
 
@@ -169,26 +173,26 @@ const TrackContextMenu: React.FC<TrackContextMenuProps> = ({
             <button
               key={index}
               onClick={item.onClick}
-              className="w-full px-3 py-2 text-left text-white hover:bg-[#404040] transition-colors flex items-center gap-3"
+              className="w-full px-4 py-3 text-left text-white hover:bg-[#404040] transition-all duration-200 flex items-center gap-3 group"
             >
-              <item.icon className="h-4 w-4 text-[#a7a7a7]" />
-              <span className="text-sm">{item.label}</span>
+              <item.icon className="h-4 w-4 text-[#a7a7a7] group-hover:text-white transition-colors" />
+              <span className="text-sm font-medium">{item.label}</span>
             </button>
           ))}
 
           {/* Track Info Section */}
-          <div className="border-t border-[#404040] mt-1 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0">
+          <div className="border-t border-[#404040] mt-1 px-4 py-3 bg-[#1a1a1a] rounded-b-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0 shadow-lg">
                 <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-                  <div className="text-white text-xs font-bold">
+                  <div className="text-white text-sm font-bold">
                     {track.name.charAt(0).toUpperCase()}
                   </div>
                 </div>
               </div>
               <div className="min-w-0">
-                <div className="text-white text-xs font-medium truncate">{track.name}</div>
-                <div className="text-[#a7a7a7] text-xs truncate">{track.artist_name}</div>
+                <div className="text-white text-sm font-medium truncate">{track.name}</div>
+                <div className="text-[#a7a7a7] text-xs truncate mt-1">{track.artist_name}</div>
               </div>
             </div>
           </div>

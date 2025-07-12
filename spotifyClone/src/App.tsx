@@ -6,10 +6,12 @@ import { ToastProvider } from "@/contexts/ToastContext";
 import { LikedSongsProvider } from "@/contexts/LikedSongsContext";
 import { PlaylistProvider } from "@/contexts/PlaylistContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthPromptProvider } from "@/contexts/AuthPromptContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import LoginPage from "./components/LoginPage";
 import SignupPage from "./components/SignupPage";
+import LandingPage from "./components/LandingPage";
 
 const queryClient = new QueryClient();
 
@@ -19,23 +21,20 @@ const App = () => (
       <ToastProvider>
         <LikedSongsProvider>
           <PlaylistProvider>
-            <MusicPlayerProvider>
-              <BrowserRouter>
-                <Routes>
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/signup" element={<SignupPage />} />
-                  <Route
-                    path="/"
-                    element={
-                      <ProtectedRoute>
-                        <Index />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route path="*" element={<LoginPage />} />
-                </Routes>
-              </BrowserRouter>
-            </MusicPlayerProvider>
+            <BrowserRouter>
+              <AuthPromptProvider>
+                <MusicPlayerProvider>
+                  <Routes>
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/signup" element={<SignupPage />} />
+                    <Route path="/landing" element={<LandingPage />} />
+                    <Route path="/app" element={<Index />} />
+                    <Route path="/" element={<Index />} />
+                    <Route path="*" element={<Index />} />
+                  </Routes>
+                </MusicPlayerProvider>
+              </AuthPromptProvider>
+            </BrowserRouter>
           </PlaylistProvider>
         </LikedSongsProvider>
       </ToastProvider>

@@ -1,5 +1,7 @@
 import { Track } from "@/types/track";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import SongCard from "./SongCard";
 
 interface SongCardGridProps {
@@ -16,12 +18,24 @@ const SongCardGrid: React.FC<SongCardGridProps> = ({
   columns = 'auto'
 }) => {
   const { playQueue, togglePlay, state } = useMusicPlayer();
+  const { isAuthenticated } = useAuth();
+  const { requireAuth } = useAuthPrompt();
 
   const handleTrackClick = (track: Track, index: number) => {
     if (state.currentTrack?.id === track.id) {
-      togglePlay();
+      // If trying to play (not pause), require authentication
+      if (!state.isPlaying && !isAuthenticated) {
+        requireAuth('play', () => togglePlay(), track.name);
+      } else {
+        togglePlay();
+      }
     } else {
-      playQueue(tracks, index);
+      // Playing a new track - require authentication
+      if (!isAuthenticated) {
+        requireAuth('play', () => playQueue(tracks, index), track.name);
+      } else {
+        playQueue(tracks, index);
+      }
     }
   };
 

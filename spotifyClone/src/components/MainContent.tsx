@@ -1,10 +1,14 @@
-import { Play } from "lucide-react";
+import { Play, Music } from "lucide-react";
 import { useState, useEffect } from "react";
 import TrackList from "./TrackList";
 import SongCardGrid from "./SongCardGrid";
 import SongCardCarousel from "./SongCardCarousel";
 import { usePopularTracks, useFeaturedTracks, useNewReleases, useSearchTracks } from "@/hooks/useApi";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
+import { usePlaylist } from "@/contexts/PlaylistContext";
+import { useNavigation } from "@/pages/Index";
 
 interface MainContentProps {
   searchQuery: string;
@@ -17,6 +21,10 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
   const [overlayOpacity, setOverlayOpacity] = useState(0);
   const [currentOverlayGradient, setCurrentOverlayGradient] = useState('');
   const { playQueue } = useMusicPlayer();
+  const { isAuthenticated } = useAuth();
+  const { requireAuth } = useAuthPrompt();
+  const { state: playlistState, loadPlaylists } = usePlaylist();
+  const { setCurrentView } = useNavigation();
 
   // Predefined gradient colors for different hover states
   const gradientOverlays = [
@@ -52,9 +60,24 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
   
   const handlePlayAlbum = (tracks: any[]) => {
     if (tracks.length > 0) {
-      playQueue(tracks);
+      if (!isAuthenticated) {
+        requireAuth('play', () => playQueue(tracks), tracks[0]?.name);
+      } else {
+        playQueue(tracks);
+      }
     }
   };
+
+  // Public playlists are loaded automatically by PlaylistProvider on mount
+
+  const handlePlaylistClick = (playlistId: string) => {
+    setCurrentView('playlist', playlistId);
+  };
+
+  // Filter public playlists
+  const publicPlaylists = playlistState.playlists.filter(playlist =>
+    playlist.isPublic !== false
+  );
 
   return (
     <div 
@@ -259,6 +282,58 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
                   <p className="text-[#b3b3b3]">Upload some tracks to see them here!</p>
                 </div>
               )}
+            </section>
+          )}
+
+          {/* Public Playlists */}
+          {publicPlaylists.length > 0 && (
+            <section className="mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">Public Playlists</h2>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {publicPlaylists.map((playlist, index) => (
+                  <div
+                    key={playlist._id}
+                    className="group bg-[#1a1a1a] hover:bg-[#2a2a2a] p-4 rounded-lg cursor-pointer transition-all duration-300"
+                    onClick={() => handlePlaylistClick(playlist._id)}
+                    onMouseEnter={() => handleCardHover(index)}
+                    onMouseLeave={handleCardLeave}
+                  >
+                    <div className="w-full aspect-square rounded-lg mb-4 overflow-hidden relative">
+                      {playlist.image ? (
+                        <img
+                          src={playlist.image}
+                          alt={playlist.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full flex items-center justify-center"
+                          style={{ backgroundColor: playlist.backgroundColor || '#404040' }}
+                        >
+                          <Music className="h-12 w-12 text-white opacity-70" />
+                        </div>
+                      )}
+                      <button
+                        className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1db954] hover:bg-[#1ed760] rounded-full h-12 w-12 flex items-center justify-center transform translate-y-2 group-hover:translate-y-0 transition-transform"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Handle play playlist
+                        }}
+                      >
+                        <Play className="h-5 w-5 text-black fill-current ml-0.5" />
+                      </button>
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-semibold text-white text-sm mb-1 truncate">{playlist.name}</h3>
+                      <p className="text-xs text-[#a7a7a7] truncate">
+                        {playlist.description || `${playlist.trackCount || 0} songs`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
         </main>

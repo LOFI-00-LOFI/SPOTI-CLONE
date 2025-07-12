@@ -1,5 +1,7 @@
 import { Play, Pause, MoreHorizontal, Clock } from "lucide-react";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { formatDuration, getTrackImage } from "@/hooks/useApi";
 import { LikedSong } from "@/contexts/LikedSongsContext";
 import { formatRelativeTime } from "@/utils/dateUtils";
@@ -26,12 +28,24 @@ const TrackList: React.FC<TrackListProps> = ({
   source = 'general'
 }) => {
   const { state, playTrack, playQueue, togglePlay } = useMusicPlayer();
+  const { isAuthenticated } = useAuth();
+  const { requireAuth } = useAuthPrompt();
 
   const handlePlayTrack = (track: Track | LikedSong, index: number) => {
     if (state.currentTrack?.id === track.id) {
-      togglePlay();
+      // If trying to play (not pause), require authentication
+      if (!state.isPlaying && !isAuthenticated) {
+        requireAuth('play', () => togglePlay(), track.name);
+      } else {
+        togglePlay();
+      }
     } else {
-      playQueue(tracks, index);
+      // Playing a new track - require authentication
+      if (!isAuthenticated) {
+        requireAuth('play', () => playQueue(tracks, index), track.name);
+      } else {
+        playQueue(tracks, index);
+      }
     }
   };
 

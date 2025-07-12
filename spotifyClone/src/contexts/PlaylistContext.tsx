@@ -79,6 +79,7 @@ function playlistReducer(state: PlaylistState, action: PlaylistAction): Playlist
 interface PlaylistContextType {
   state: PlaylistState;
   loadPlaylists: () => Promise<void>;
+  loadMyPlaylists: () => Promise<void>;
   createPlaylist: (data: CreatePlaylistData, imageFile?: File) => Promise<Playlist | null>;
   updatePlaylist: (id: string, data: Partial<CreatePlaylistData>, imageFile?: File) => Promise<void>;
   deletePlaylist: (id: string) => Promise<void>;
@@ -94,7 +95,7 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [state, dispatch] = useReducer(playlistReducer, initialState);
   const { success, error: showError } = useToast();
 
-  // Load all playlists
+  // Load all public playlists
   const loadPlaylists = async () => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
@@ -108,11 +109,25 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  // Load user's own playlists
+  const loadMyPlaylists = async () => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+      const response = await localApi.getMyPlaylists({ limit: 100 });
+      dispatch({ type: 'SET_PLAYLISTS', payload: response.playlists });
+    } catch (error) {
+      console.error('Failed to load my playlists:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load my playlists';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+      showError('Failed to load my playlists');
+    }
+  };
+
   // Create new playlist
   const createPlaylist = async (data: CreatePlaylistData, imageFile?: File): Promise<Playlist | null> => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      const newPlaylist = await localApi.createPlaylist(data, imageFile);
+      const newPlaylist = await localApi.createPlaylist(data, imageFile) as Playlist;
       dispatch({ type: 'ADD_PLAYLIST', payload: newPlaylist });
       success('Playlist created successfully!');
       return newPlaylist;
@@ -129,7 +144,7 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const updatePlaylist = async (id: string, data: Partial<CreatePlaylistData>, imageFile?: File) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      const updatedPlaylist = await localApi.updatePlaylist(id, data, imageFile);
+      const updatedPlaylist = await localApi.updatePlaylist(id, data, imageFile) as Playlist;
       dispatch({ type: 'UPDATE_PLAYLIST', payload: updatedPlaylist });
       success('Playlist updated successfully!');
     } catch (error) {
@@ -227,6 +242,7 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const contextValue: PlaylistContextType = {
     state,
     loadPlaylists,
+    loadMyPlaylists,
     createPlaylist,
     updatePlaylist,
     deletePlaylist,

@@ -1,6 +1,8 @@
 import { Heart, Play, Download, MoreHorizontal, List, Clock, Edit3, Trash2, Music, Shuffle } from "lucide-react";
 import { usePlaylist } from "@/contexts/PlaylistContext";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { useState, useEffect, useRef } from "react";
 import { useNavigation } from "@/pages/Index";
 import { Playlist, LocalTrack } from "@/lib/localApi";
@@ -15,6 +17,8 @@ interface PlaylistPageProps {
 const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
   const { state, loadPlaylistById, removeTrackFromPlaylist, deletePlaylist } = usePlaylist();
   const { playQueue } = useMusicPlayer();
+  const { isAuthenticated } = useAuth();
+  const { requireAuth } = useAuthPrompt();
   const { setCurrentView } = useNavigation();
   const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [showTableHeaderBg, setShowTableHeaderBg] = useState(false);
@@ -86,14 +90,22 @@ const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
 
   const handlePlayAll = () => {
     if (filteredTracks.length > 0) {
-      playQueue(filteredTracks, 0);
+      if (!isAuthenticated) {
+        requireAuth('play', () => playQueue(filteredTracks, 0), filteredTracks[0]?.name);
+      } else {
+        playQueue(filteredTracks, 0);
+      }
     }
   };
 
   const handleShuffle = () => {
     if (filteredTracks.length > 0) {
       const shuffled = [...filteredTracks].sort(() => Math.random() - 0.5);
-      playQueue(shuffled, 0);
+      if (!isAuthenticated) {
+        requireAuth('play', () => playQueue(shuffled, 0), shuffled[0]?.name);
+      } else {
+        playQueue(shuffled, 0);
+      }
     }
   };
 
