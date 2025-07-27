@@ -180,4 +180,23 @@ router.get('/feed', authenticateToken, async (req, res) => {
       .skip(skip);
 
     const total = await Playlist.countDocuments({
-      createdBy: { $in:
+      createdBy: { $in: followingIds },
+      isPublic: true
+    });
+
+    res.json({
+      playlists,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        itemsPerPage: limit
+      }
+    });
+  } catch (error) {
+    console.error('Get feed error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+module.exports = router;

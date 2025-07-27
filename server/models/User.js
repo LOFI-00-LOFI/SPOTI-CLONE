@@ -95,13 +95,6 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for faster queries
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
-userSchema.index({ googleId: 1 }, { sparse: true });
-userSchema.index({ facebookId: 1 }, { sparse: true });
-userSchema.index({ appleId: 1 }, { sparse: true });
-
 // Pre-save middleware to hash password
 userSchema.pre('save', async function(next) {
   // Only hash the password if it has been modified (or is new)

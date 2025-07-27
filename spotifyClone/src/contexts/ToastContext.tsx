@@ -1,18 +1,34 @@
 import React, { createContext, useContext } from 'react';
-import { useToast as useToastHook } from '@/hooks/useToast';
-import ToastContainer from '@/components/ToastContainer';
+import toast, { Toaster } from 'react-hot-toast';
 
-type ToastContextType = ReturnType<typeof useToastHook>;
+type ToastContextType = {
+  success: (message: string) => void;
+  error: (message: string) => void;
+  info: (message: string) => void;
+};
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const toast = useToastHook();
+  const toastFunctions = {
+    success: (message: string) => toast.success(message),
+    error: (message: string) => toast.error(message),
+    info: (message: string) => toast(message)
+  };
 
   return (
-    <ToastContext.Provider value={toast}>
+    <ToastContext.Provider value={toastFunctions}>
       {children}
-      <ToastContainer />
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: '#333',
+            color: '#fff',
+          },
+        }}
+      />
     </ToastContext.Provider>
   );
 };

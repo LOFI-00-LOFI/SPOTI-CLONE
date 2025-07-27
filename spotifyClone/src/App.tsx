@@ -7,7 +7,6 @@ import { LikedSongsProvider } from "@/contexts/LikedSongsContext";
 import { PlaylistProvider } from "@/contexts/PlaylistContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthPromptProvider } from "@/contexts/AuthPromptContext";
-import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import LoginPage from "./components/LoginPage";
 import SignupPage from "./components/SignupPage";

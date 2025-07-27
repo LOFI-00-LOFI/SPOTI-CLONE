@@ -1,40 +1,52 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const audioRoutes = require('./routes/audio');
-const playlistRoutes = require('./routes/playlist');
-const authRoutes = require('./routes/auth');
-const morgan = require('morgan');
-require('dotenv').config();
+const express = require("express")
+const cors = require("cors")
+const mongoose = require("mongoose")
+const morgan = require("morgan")
+const dotenv = require("dotenv")
+const audioRoutes = require("./routes/audio")
+const playlistRoutes = require("./routes/playlist")
+const authRoutes = require("./routes/auth")
+const socialRoutes = require("./routes/social")
 
-const app = express();
+dotenv.config()
 
-app.use(morgan('dev'));
+const PORT = process.env.PORT || 5000
 
-// Middleware
+const app = express()
+
+//middleware
 app.use(cors({
   origin: "*"
-}));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+}))
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
+app.use(morgan("dev"))
 
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected successfully'))
-  .catch(err => console.error('MongoDB connection error:', err));
+//Connect to DB
+mongoose.connect(process.env.MONGO_URI).then((res)=>{
+    console.log("Connected to DB:", res.connection.db.databaseName)
+}).catch((err)=>{
+    console.log("Error connecting to DB", err)
+})
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/audio', audioRoutes);
-app.use('/api/playlists', playlistRoutes);
+//Routes
+app.use("/api/auth", authRoutes)
+app.use("/api/audio", audioRoutes)
+app.use("/api/playlists", playlistRoutes)
+app.use("/api/social", socialRoutes)
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
-});
+// Default route for health check
+app.get("/", (req, res) => {
+  res.status(200).send("🎵 Spotify Clone API is running");
+})
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📱 Health check: http://localhost:${PORT}/health`);
-}); 
+// Only listen to the port when not running in Vercel (development mode)
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, ()=>{
+      console.log(`🚀 Server running on http://localhost:${PORT}`)
+      console.log(`📱 Health check: http://localhost:${PORT}/`)
+  })
+}
+
+// Export the app for Vercel
+module.exports = app; 

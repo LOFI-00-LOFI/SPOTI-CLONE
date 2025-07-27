@@ -71,7 +71,7 @@ export interface PlaylistApiResponse<T> {
 class LocalApi {
   private readonly axiosInstance: AxiosInstance;
 
-  constructor(baseUrl: string = 'http://localhost:5000/api') {
+  constructor(baseUrl: string = 'https://spotiapi-khaki.vercel.app/api') {
     this.axiosInstance = axios.create({
       baseURL: baseUrl,
       timeout: 30000, // 30 seconds timeout
