@@ -6,7 +6,6 @@ const dotenv = require("dotenv")
 const audioRoutes = require("./routes/audio")
 const playlistRoutes = require("./routes/playlist")
 const authRoutes = require("./routes/auth")
-const socialRoutes = require("./routes/social")
 
 dotenv.config()
 
@@ -33,7 +32,6 @@ mongoose.connect(process.env.MONGO_URI).then((res)=>{
 app.use("/api/auth", authRoutes)
 app.use("/api/audio", audioRoutes)
 app.use("/api/playlists", playlistRoutes)
-app.use("/api/social", socialRoutes)
 
 // Default route for health check
 app.get("/", (req, res) => {

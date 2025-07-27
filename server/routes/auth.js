@@ -140,12 +140,6 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    if (!user.isActive) {
-      return res.status(401).json({ 
-        error: 'Account is deactivated' 
-      });
-    }
-
     // Check password
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
