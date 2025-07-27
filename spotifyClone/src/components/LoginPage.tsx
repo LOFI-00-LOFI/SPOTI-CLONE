@@ -3,10 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import logo from "../assests/logo.png";
+import { LucideEye, LucideEyeOff } from 'lucide-react';
+
 
 const LoginPage: React.FC = () => {
   const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const { login, loading, error, clearError } = useAuth();
   const { success, error: showError } = useToast();
   const navigate = useNavigate();
@@ -54,12 +57,12 @@ const LoginPage: React.FC = () => {
             />
           </div>
 
-          <div>
+          <div className="relative">
             <label htmlFor="password" className="block text-white text-sm font-medium mb-2">
               Password
             </label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -67,6 +70,13 @@ const LoginPage: React.FC = () => {
               className="w-full bg-[#121212] border border-gray-600 text-white px-4 py-3 rounded-md focus:border-white focus:outline-none"
               required
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-[42px] text-gray-500 hover:text-white"
+            >
+              {showPassword ? <LucideEye className="w-5 h-5 text-gray-500 hover:text-white" /> : <LucideEyeOff className="w-5 h-5 text-gray-500 hover:text-white" />}
+            </button>
           </div>
 
           <button

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import logo from "../assests/logo.png";
+import { LucideCalendar, LucideEye, LucideEyeOff } from 'lucide-react';
 
 const SignupPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -10,7 +11,7 @@ const SignupPage: React.FC = () => {
   const [displayName, setDisplayName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState('prefer-not-to-say');
-
+  const [showPassword, setShowPassword] = useState(false);
   const { signup, loading, error, clearError } = useAuth();
   const { success, error: showError } = useToast();
   const navigate = useNavigate();
@@ -58,12 +59,13 @@ const SignupPage: React.FC = () => {
             />
           </div>
 
-          <div>
+          <div className="relative">
             <label htmlFor="password" className="block text-white text-sm font-medium mb-2">
               Create a password
             </label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -71,6 +73,13 @@ const SignupPage: React.FC = () => {
               className="w-full bg-[#121212] border border-gray-600 text-white px-4 py-3 rounded-md focus:border-white focus:outline-none"
               required
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-[42px] text-gray-500 hover:text-white"
+            >
+             { showPassword ? <LucideEye className="w-5 h-5 text-gray-500 hover:text-white" /> : <LucideEyeOff className="w-5 h-5 text-gray-500 hover:text-white" />}
+            </button>
           </div>
 
           <div>
@@ -89,7 +98,7 @@ const SignupPage: React.FC = () => {
             <p className="text-gray-400 text-xs mt-1">This appears on your profile.</p>
           </div>
 
-          <div>
+          <div className="relative mb-4">
             <label htmlFor="dateOfBirth" className="block text-white text-sm font-medium mb-2">
               What's your date of birth?
             </label>
@@ -98,9 +107,11 @@ const SignupPage: React.FC = () => {
               id="dateOfBirth"
               value={dateOfBirth}
               onChange={(e) => setDateOfBirth(e.target.value)}
-              className="w-full bg-[#121212] border border-gray-600 text-white px-4 py-3 rounded-md focus:border-white focus:outline-none"
+              className="peer w-full bg-[#121212] border border-gray-600 text-white px-4 py-3  rounded-md focus:border-white focus:outline-none"
             />
+          <LucideCalendar className="absolute right-3 top-[42px] h-5 w-5 text-gray-500 peer-focus:text-white pointer-events-none" />
           </div>
+
 
           <div>
             <label htmlFor="gender" className="block text-white text-sm font-medium mb-2">
