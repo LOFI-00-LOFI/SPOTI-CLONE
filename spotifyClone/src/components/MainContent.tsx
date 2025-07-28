@@ -16,6 +16,69 @@ interface MainContentProps {
 
 type TabType = 'all' | 'music';
 
+// Skeleton components
+const QuickPlaySkeleton = () => (
+  <section className="mb-8">
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+      {Array(6).fill(0).map((_, index) => (
+        <div
+          key={index}
+          className="bg-white/10 backdrop-blur-sm rounded-lg p-4 flex items-center gap-4 animate-pulse"
+        >
+          <div className="w-12 h-12 rounded bg-white/20"></div>
+          <div className="flex-1 min-w-0">
+            <div className="h-4 bg-white/20 rounded w-3/4 mb-2"></div>
+            <div className="h-3 bg-white/15 rounded w-1/2"></div>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-white/15"></div>
+        </div>
+      ))}
+    </div>
+  </section>
+);
+
+const CarouselSkeleton = () => (
+  <div className="flex gap-4 overflow-hidden">
+    {Array(6).fill(0).map((_, index) => (
+      <div key={index} className="flex-shrink-0 w-48 animate-pulse">
+        <div className="w-full aspect-square rounded-lg bg-white/20 mb-4"></div>
+        <div className="h-4 bg-white/20 rounded w-3/4 mb-2"></div>
+        <div className="h-3 bg-white/15 rounded w-1/2"></div>
+      </div>
+    ))}
+  </div>
+);
+
+const TrackListSkeleton = () => (
+  <div className="space-y-2">
+    {Array(8).fill(0).map((_, index) => (
+      <div key={index} className="flex items-center gap-4 p-2 animate-pulse">
+        <div className="w-4 h-4 bg-white/20 rounded"></div>
+        <div className="w-12 h-12 rounded bg-white/20"></div>
+        <div className="flex-1 min-w-0">
+          <div className="h-4 bg-white/20 rounded w-1/3 mb-2"></div>
+          <div className="h-3 bg-white/15 rounded w-1/4"></div>
+        </div>
+        <div className="h-3 bg-white/15 rounded w-20"></div>
+        <div className="h-3 bg-white/15 rounded w-12"></div>
+        <div className="w-8 h-8 bg-white/15 rounded"></div>
+      </div>
+    ))}
+  </div>
+);
+
+const PlaylistGridSkeleton = () => (
+  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+    {Array(10).fill(0).map((_, index) => (
+      <div key={index} className="bg-[#1a1a1a] p-4 rounded-lg animate-pulse">
+        <div className="w-full aspect-square rounded-lg bg-white/20 mb-4"></div>
+        <div className="h-4 bg-white/20 rounded w-3/4 mb-2"></div>
+        <div className="h-3 bg-white/15 rounded w-1/2"></div>
+      </div>
+    ))}
+  </div>
+);
+
 const MainContent = ({ searchQuery }: MainContentProps) => {
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [overlayOpacity, setOverlayOpacity] = useState(0);
@@ -127,8 +190,14 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
             <section className="mb-8">
               <h2 className="text-2xl font-bold text-white mb-4">Search Results</h2>
               {loadingSearch ? (
-                <div className="text-center py-8">
-                  <div className="text-[#a7a7a7]">Searching...</div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {Array(8).fill(0).map((_, index) => (
+                    <div key={index} className="bg-[#1a1a1a] p-4 rounded-lg animate-pulse">
+                      <div className="w-full aspect-square rounded-lg bg-white/20 mb-4"></div>
+                      <div className="h-4 bg-white/20 rounded w-3/4 mb-2"></div>
+                      <div className="h-3 bg-white/15 rounded w-1/2"></div>
+                    </div>
+                  ))}
                 </div>
               ) : searchError ? (
                 <div className="text-center py-8">
@@ -151,7 +220,9 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
           )}
 
           {/* Quick Play Grid - Only show when not searching */}
-          {!searchQuery && quickPlayTracks.length > 0 && (
+          {!searchQuery && (loadingPopular ? (
+            <QuickPlaySkeleton />
+          ) : quickPlayTracks.length > 0 ? (
             <section className="mb-8">
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
                 {quickPlayTracks.map((track, index) => (
@@ -196,7 +267,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
                 ))}
               </div>
             </section>
-          )}
+          ) : null)}
 
           {/* No music uploaded message */}
           {!searchQuery && quickPlayTracks.length === 0 && !loadingPopular && (
@@ -212,15 +283,13 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
           {!searchQuery && activeTab === 'all' && (
             <>
               {/* Featured Tracks */}
-              {featuredTracks && featuredTracks.results.length > 0 && (
+              {(loadingFeatured || (featuredTracks && featuredTracks.results.length > 0)) && (
                 <section className="mb-8">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-bold text-white">Featured Tracks</h2>
                   </div>
                   {loadingFeatured ? (
-                    <div className="text-center py-8">
-                      <div className="text-[#a7a7a7]">Loading featured tracks...</div>
-                    </div>
+                    <CarouselSkeleton />
                   ) : (
                     <SongCardCarousel 
                       tracks={featuredTracks.results} 
@@ -231,15 +300,13 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
               )}
 
               {/* New Releases */}
-              {newReleases && newReleases.results.length > 0 && (
+              {(loadingNew || (newReleases && newReleases.results.length > 0)) && (
                 <section className="mb-8">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-bold text-white">New Releases</h2>
                   </div>
                   {loadingNew ? (
-                    <div className="text-center py-8">
-                      <div className="text-[#a7a7a7]">Loading new releases...</div>
-                    </div>
+                    <CarouselSkeleton />
                   ) : (
                     <SongCardCarousel 
                       tracks={newReleases.results} 
@@ -250,15 +317,13 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
               )}
 
               {/* All Popular Tracks */}
-              {popularTracks && popularTracks.results.length > 0 && (
+              {(loadingPopular || (popularTracks && popularTracks.results.length > 0)) && (
                 <section className="mb-8">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-bold text-white">Popular Tracks</h2>
                   </div>
                   {loadingPopular ? (
-                    <div className="text-center py-8">
-                      <div className="text-[#a7a7a7]">Loading popular tracks...</div>
-                    </div>
+                    <TrackListSkeleton />
                   ) : (
                     <TrackList tracks={popularTracks.results} />
                   )}
@@ -274,9 +339,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
                 <h2 className="text-2xl font-bold text-white">All Music</h2>
               </div>
               {loadingPopular ? (
-                <div className="text-center py-8">
-                  <div className="text-[#a7a7a7]">Loading music...</div>
-                </div>
+                <TrackListSkeleton />
               ) : popularTracks && popularTracks.results.length > 0 ? (
                 <TrackList tracks={popularTracks.results} />
               ) : (
@@ -289,54 +352,58 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
           )}
 
           {/* Public Playlists */}
-          {publicPlaylists.length > 0 && (
+          {(playlistState.isLoading || publicPlaylists.length > 0) && (
             <section className="mb-8">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-bold text-white">Public Playlists</h2>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {publicPlaylists.map((playlist, index) => (
-                  <div
-                    key={playlist._id}
-                    className="group bg-[#1a1a1a] hover:bg-[#2a2a2a] p-4 rounded-lg cursor-pointer transition-all duration-300"
-                    onClick={() => handlePlaylistClick(playlist._id)}
-                    onMouseEnter={() => handleCardHover(index)}
-                    onMouseLeave={handleCardLeave}
-                  >
-                    <div className="w-full aspect-square rounded-lg mb-4 overflow-hidden relative">
-                      {playlist.image ? (
-                        <img
-                          src={playlist.image}
-                          alt={playlist.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div
-                          className="w-full h-full flex items-center justify-center"
-                          style={{ backgroundColor: playlist.backgroundColor || '#404040' }}
+              {playlistState.isLoading ? (
+                <PlaylistGridSkeleton />
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {publicPlaylists.map((playlist, index) => (
+                    <div
+                      key={playlist._id}
+                      className="group bg-[#1a1a1a] hover:bg-[#2a2a2a] p-4 rounded-lg cursor-pointer transition-all duration-300"
+                      onClick={() => handlePlaylistClick(playlist._id)}
+                      onMouseEnter={() => handleCardHover(index)}
+                      onMouseLeave={handleCardLeave}
+                    >
+                      <div className="w-full aspect-square rounded-lg mb-4 overflow-hidden relative">
+                        {playlist.image ? (
+                          <img
+                            src={playlist.image}
+                            alt={playlist.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div
+                            className="w-full h-full flex items-center justify-center"
+                            style={{ backgroundColor: playlist.backgroundColor || '#404040' }}
+                          >
+                            <Music className="h-12 w-12 text-white opacity-70" />
+                          </div>
+                        )}
+                        <button
+                          className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1db954] hover:bg-[#1ed760] rounded-full h-12 w-12 flex items-center justify-center transform translate-y-2 group-hover:translate-y-0 transition-transform"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Handle play playlist
+                          }}
                         >
-                          <Music className="h-12 w-12 text-white opacity-70" />
-                        </div>
-                      )}
-                      <button
-                        className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-[#1db954] hover:bg-[#1ed760] rounded-full h-12 w-12 flex items-center justify-center transform translate-y-2 group-hover:translate-y-0 transition-transform"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Handle play playlist
-                        }}
-                      >
-                        <Play className="h-5 w-5 text-black fill-current ml-0.5" />
-                      </button>
+                          <Play className="h-5 w-5 text-black fill-current ml-0.5" />
+                        </button>
+                      </div>
+                      <div className="text-left">
+                        <h3 className="font-semibold text-white text-sm mb-1 truncate">{playlist.name}</h3>
+                        <p className="text-xs text-[#a7a7a7] truncate">
+                          {playlist.description || `${playlist.trackCount || 0} songs`}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-left">
-                      <h3 className="font-semibold text-white text-sm mb-1 truncate">{playlist.name}</h3>
-                      <p className="text-xs text-[#a7a7a7] truncate">
-                        {playlist.description || `${playlist.trackCount || 0} songs`}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
           )}
         </main>
