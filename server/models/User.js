@@ -39,6 +39,35 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  lastLogin: {
+    type: Date
+  },
+  loginCount: {
+    type: Number,
+    default: 0
+  },
+  likedSongs: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Audio'
+  }],
+  recentlyPlayed: [{
+    track: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Audio'
+    },
+    playedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  followedPlaylists: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Playlist'
+  }],
   createdAt: {
     type: Date,
     default: Date.now
@@ -79,6 +108,24 @@ userSchema.methods.toPublicJSON = function() {
     profileImage: this.profileImage,
     isPremium: this.isPremium,
     createdAt: this.createdAt
+  };
+};
+
+// Private user data (for authenticated user's own data)
+userSchema.methods.toPrivateJSON = function() {
+  return {
+    id: this._id,
+    email: this.email,
+    username: this.username,
+    displayName: this.displayName,
+    dateOfBirth: this.dateOfBirth,
+    gender: this.gender,
+    profileImage: this.profileImage,
+    isPremium: this.isPremium,
+    lastLogin: this.lastLogin,
+    loginCount: this.loginCount,
+    createdAt: this.createdAt,
+    updatedAt: this.updatedAt
   };
 };
 

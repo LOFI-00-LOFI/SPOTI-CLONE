@@ -2,6 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const cloudinary = require('../cloudinary');
 const Audio = require('../models/Audio');
+const User = require('../models/User');
+const { authenticateToken } = require('./auth');
 const router = express.Router();
 
 // Multer config
@@ -305,6 +307,234 @@ router.delete('/:id', async (req, res) => {
     await Audio.findByIdAndDelete(req.params.id);
     res.json({ message: 'Deleted' });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Like/Unlike a track (requires authentication)
+router.post('/:id/like', authenticateToken, async (req, res) => {
+  try {
+    const trackId = req.params.id;
+    const userId = req.user._id;
+
+    // Verify track exists
+    const track = await Audio.findById(trackId);
+    if (!track) {
+      return res.status(404).json({ error: 'Track not found' });
+    }
+
+    const user = await User.findById(userId);
+    const isLiked = user.likedSongs.includes(trackId);
+
+    if (isLiked) {
+      // Unlike the track
+      user.likedSongs = user.likedSongs.filter(id => id.toString() !== trackId);
+      await user.save();
+      
+      res.json({ 
+        message: 'Track removed from liked songs',
+        isLiked: false 
+      });
+    } else {
+      // Like the track
+      user.likedSongs.push(trackId);
+      await user.save();
+      
+      res.json({ 
+        message: 'Track added to liked songs',
+        isLiked: true 
+      });
+    }
+
+  } catch (err) {
+    console.error('Like/unlike track error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Check if user likes a track
+router.get('/:id/like-status', authenticateToken, async (req, res) => {
+  try {
+    const trackId = req.params.id;
+    const userId = req.user._id;
+
+    const user = await User.findById(userId);
+    const isLiked = user.likedSongs.includes(trackId);
+
+    res.json({ isLiked });
+
+  } catch (err) {
+    console.error('Check like status error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get user's liked songs
+router.get('/liked/songs', authenticateToken, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const user = await User.findById(req.user._id)
+      .populate({
+        path: 'likedSongs',
+        options: {
+          skip: skip,
+          limit: limit,
+          sort: { createdAt: -1 }
+        }
+      });
+
+    const totalLikedSongs = await User.findById(req.user._id).select('likedSongs');
+    const total = totalLikedSongs.likedSongs.length;
+
+    res.json({
+      likedSongs: user.likedSongs,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        itemsPerPage: limit
+      }
+    });
+
+  } catch (err) {
+    console.error('Get liked songs error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add to recently played
+router.post('/:id/play', authenticateToken, async (req, res) => {
+  try {
+    const trackId = req.params.id;
+    const userId = req.user._id;
+
+    // Verify track exists
+    const track = await Audio.findById(trackId);
+    if (!track) {
+      return res.status(404).json({ error: 'Track not found' });
+    }
+
+    const user = await User.findById(userId);
+    
+    // Remove track from recently played if it already exists
+    user.recentlyPlayed = user.recentlyPlayed.filter(
+      item => item.track.toString() !== trackId
+    );
+
+    // Add track to the beginning of recently played
+    user.recentlyPlayed.unshift({
+      track: trackId,
+      playedAt: new Date()
+    });
+
+    // Keep only the last 50 recently played tracks
+    if (user.recentlyPlayed.length > 50) {
+      user.recentlyPlayed = user.recentlyPlayed.slice(0, 50);
+    }
+
+    await user.save();
+
+    res.json({ 
+      message: 'Track added to recently played',
+      track: track
+    });
+
+  } catch (err) {
+    console.error('Add to recently played error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get user's recently played tracks
+router.get('/recently-played', authenticateToken, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+
+    const user = await User.findById(req.user._id)
+      .populate({
+        path: 'recentlyPlayed.track',
+        select: 'title artist_name album_name duration url image genre'
+      });
+
+    const recentlyPlayed = user.recentlyPlayed
+      .slice(0, limit)
+      .map(item => ({
+        track: item.track,
+        playedAt: item.playedAt
+      }));
+
+    res.json({ recentlyPlayed });
+
+  } catch (err) {
+    console.error('Get recently played error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get recommendations based on user's liked songs
+router.get('/recommendations', authenticateToken, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    const user = await User.findById(req.user._id).populate('likedSongs');
+
+    if (user.likedSongs.length === 0) {
+      // If user has no liked songs, return popular tracks
+      const recommendations = await Audio.find()
+        .sort({ createdAt: -1 })
+        .limit(limit);
+      
+      return res.json({ recommendations });
+    }
+
+    // Get genres from liked songs
+    const likedGenres = [...new Set(user.likedSongs.map(song => song.genre))];
+    const likedArtists = [...new Set(user.likedSongs.map(song => song.artist_name))];
+    
+    // Find tracks with similar genres or artists, excluding already liked songs
+    const recommendations = await Audio.find({
+      _id: { $nin: user.likedSongs.map(song => song._id) },
+      $or: [
+        { genre: { $in: likedGenres } },
+        { artist_name: { $in: likedArtists } }
+      ]
+    })
+    .sort({ createdAt: -1 })
+    .limit(limit);
+
+    res.json({ recommendations });
+
+  } catch (err) {
+    console.error('Get recommendations error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get audio statistics (play count would need to be tracked separately)
+router.get('/:id/stats', async (req, res) => {
+  try {
+    const trackId = req.params.id;
+    
+    // Count how many users have liked this track
+    const likeCount = await User.countDocuments({
+      likedSongs: trackId
+    });
+
+    // Count how many users have this in recently played
+    const playCount = await User.countDocuments({
+      'recentlyPlayed.track': trackId
+    });
+
+    res.json({
+      trackId,
+      likeCount,
+      playCount
+    });
+
+  } catch (err) {
+    console.error('Get audio stats error:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -26,6 +26,11 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
   const { state: playlistState, loadPlaylists } = usePlaylist();
   const { setCurrentView } = useNavigation();
 
+  // Load playlists when component mounts and when auth status changes
+  useEffect(() => {
+    loadPlaylists();
+  }, [isAuthenticated]);
+
   // Predefined gradient colors for different hover states
   const gradientOverlays = [
     'linear-gradient(to bottom, rgba(42, 31, 61, 0.8), rgba(31, 26, 46, 0.6), rgba(18, 18, 18, 0))', // Bright Purple

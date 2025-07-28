@@ -3,6 +3,7 @@ const multer = require('multer');
 const cloudinary = require('../cloudinary');
 const Playlist = require('../models/Playlist');
 const Audio = require('../models/Audio');
+const User = require('../models/User');
 const { authenticateToken } = require('./auth');
 const router = express.Router();
 
@@ -406,6 +407,136 @@ router.get('/featured/all', async (req, res) => {
     res.json(playlists);
   } catch (err) {
     console.error('Get featured playlists error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Follow/Unfollow a playlist
+router.post('/:id/follow', authenticateToken, async (req, res) => {
+  try {
+    const playlistId = req.params.id;
+    const userId = req.user._id;
+
+    // Verify playlist exists and is public
+    const playlist = await Playlist.findById(playlistId);
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    if (!playlist.isPublic && playlist.createdBy.toString() !== userId.toString()) {
+      return res.status(403).json({ error: 'Cannot follow private playlist' });
+    }
+
+    const user = await User.findById(userId);
+    const isFollowed = user.followedPlaylists.includes(playlistId);
+
+    if (isFollowed) {
+      // Unfollow the playlist
+      user.followedPlaylists = user.followedPlaylists.filter(id => id.toString() !== playlistId);
+      await user.save();
+      
+      res.json({ 
+        message: 'Playlist unfollowed',
+        isFollowed: false 
+      });
+    } else {
+      // Follow the playlist
+      user.followedPlaylists.push(playlistId);
+      await user.save();
+      
+      res.json({ 
+        message: 'Playlist followed',
+        isFollowed: true 
+      });
+    }
+
+  } catch (err) {
+    console.error('Follow/unfollow playlist error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Check if user follows a playlist
+router.get('/:id/follow-status', authenticateToken, async (req, res) => {
+  try {
+    const playlistId = req.params.id;
+    const userId = req.user._id;
+
+    const user = await User.findById(userId);
+    const isFollowed = user.followedPlaylists.includes(playlistId);
+
+    res.json({ isFollowed });
+
+  } catch (err) {
+    console.error('Check follow status error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get user's followed playlists
+router.get('/followed/all', authenticateToken, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const user = await User.findById(req.user._id)
+      .populate({
+        path: 'followedPlaylists',
+        populate: [
+          { path: 'createdBy', select: 'displayName' },
+          { path: 'tracks', select: 'title artist_name duration' }
+        ],
+        options: {
+          skip: skip,
+          limit: limit,
+          sort: { createdAt: -1 }
+        }
+      });
+
+    const totalFollowed = await User.findById(req.user._id).select('followedPlaylists');
+    const total = totalFollowed.followedPlaylists.length;
+
+    res.json({
+      followedPlaylists: user.followedPlaylists,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        itemsPerPage: limit
+      }
+    });
+
+  } catch (err) {
+    console.error('Get followed playlists error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get playlist statistics
+router.get('/:id/stats', async (req, res) => {
+  try {
+    const playlistId = req.params.id;
+    
+    // Count how many users follow this playlist
+    const followCount = await User.countDocuments({
+      followedPlaylists: playlistId
+    });
+
+    const playlist = await Playlist.findById(playlistId).populate('tracks');
+    if (!playlist) {
+      return res.status(404).json({ error: 'Playlist not found' });
+    }
+
+    res.json({
+      playlistId,
+      followCount,
+      trackCount: playlist.trackCount,
+      totalDuration: playlist.totalDuration
+    });
+
+  } catch (err) {
+    console.error('Get playlist stats error:', err);
     res.status(500).json({ error: err.message });
   }
 });

@@ -308,7 +308,13 @@ const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
             <div className="relative">
               <button
                 className="text-[#a7a7a7] hover:text-white h-8 w-8 hover:bg-[#ffffff10] inline-flex items-center justify-center rounded"
-                onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    requireAuth('playlist', () => setShowDeleteConfirm(true), `manage ${playlist?.name}`);
+                  } else {
+                    setShowDeleteConfirm(!showDeleteConfirm);
+                  }
+                }}
               >
                 <MoreHorizontal className="h-5 w-5" />
               </button>
@@ -318,7 +324,15 @@ const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
                 <div className="absolute top-10 left-0 bg-[#282828] border border-[#404040] rounded-md shadow-xl py-2 w-48 z-30">
                   <button
                     onClick={() => {
-                      // TODO: Implement edit functionality
+                      if (!isAuthenticated) {
+                        requireAuth('playlist', () => {
+                          // TODO: Implement edit functionality
+                          console.log('Edit playlist functionality coming soon');
+                        }, `edit ${playlist?.name}`);
+                      } else {
+                        // TODO: Implement edit functionality
+                        console.log('Edit playlist functionality coming soon');
+                      }
                       setShowDeleteConfirm(false);
                     }}
                     className="w-full px-4 py-2 text-left text-white hover:bg-[#404040] transition-colors flex items-center gap-3"
@@ -328,7 +342,11 @@ const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
                   </button>
                   <button
                     onClick={() => {
-                      handleDeletePlaylist();
+                      if (!isAuthenticated) {
+                        requireAuth('playlist', () => handleDeletePlaylist(), `delete ${playlist?.name}`);
+                      } else {
+                        handleDeletePlaylist();
+                      }
                       setShowDeleteConfirm(false);
                     }}
                     className="w-full px-4 py-2 text-left text-red-400 hover:bg-[#404040] transition-colors flex items-center gap-3"
