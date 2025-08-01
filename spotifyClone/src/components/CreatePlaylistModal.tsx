@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Upload, Music, Image as ImageIcon, Loader2, CheckCircle, Palette } from 'lucide-react';
-import { CreatePlaylistData } from '@/lib/localApi';
+import { CreatePlaylistData } from '@/types/api';
 import { usePlaylist } from '@/contexts/PlaylistContext';
 
 interface CreatePlaylistModalProps {

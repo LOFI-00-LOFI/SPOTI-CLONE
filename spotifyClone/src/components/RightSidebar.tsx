@@ -3,9 +3,38 @@ import { MoreHorizontal, Play } from "lucide-react";
 import { getTrackImage, formatDuration } from "@/hooks/useApi";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
 import HeartButton from "./HeartButton";
+import { Track } from '@/types/track';
 
-const RightSidebar = () => {
+interface RightSidebarProps {}
+
+interface ConvertedTrack extends Track {
+  _id?: string;
+  title?: string;
+  url?: string;
+}
+
+const RightSidebar: React.FC<RightSidebarProps> = () => {
   const { state, playTrack, dispatch } = useMusicPlayer();
+
+  // Convert LocalTrack to Track for HeartButton
+  const convertToTrack = (localTrack: any): ConvertedTrack => ({
+    id: localTrack._id || localTrack.id,
+    name: localTrack.title || localTrack.name || 'Unknown Track',
+    duration: localTrack.duration,
+    artist_name: localTrack.artist_name,
+    artist_id: localTrack._id || localTrack.id,
+    album_name: localTrack.album_name || 'Single',
+    album_id: localTrack._id || localTrack.id,
+    album_image: localTrack.image || '/placeholder-album.jpg',
+    audio: localTrack.url || localTrack.audio,
+    audiodownload: localTrack.url || localTrack.audio,
+    prourl: '',
+    shorturl: '',
+    shareurl: '',
+    waveform: '',
+    image: localTrack.image || '/placeholder-album.jpg',
+    audiodownload_allowed: true,
+  });
 
   return (
     <div className="w-80 bg-[#121212] text-white h-full flex flex-col rounded-xl">
@@ -23,16 +52,9 @@ const RightSidebar = () => {
         {state.currentTrack ? (
           <div className="relative mb-4">
             <div className="w-full aspect-square bg-gradient-to-br from-blue-600 via-purple-600 to-cyan-400 rounded-lg relative overflow-hidden">
-              {state.currentTrack.album_image || state.currentTrack.image ? (
-                <img
-                  src={getTrackImage(state.currentTrack)}
-                  alt={state.currentTrack.album_name}
-                  className="w-full h-full object-cover"
-                />
-              ) : null}
               <div className="absolute inset-0 bg-black bg-opacity-20"></div>
               <div className="absolute bottom-4 left-4 right-4">
-                <h3 className="text-white font-bold text-xl mb-1 truncate">{state.currentTrack.name}</h3>
+                <h3 className="text-white font-bold text-xl mb-1 truncate">{state.currentTrack.name || state.currentTrack.title}</h3>
                 <p className="text-gray-200 text-sm truncate">{state.currentTrack.artist_name}</p>
               </div>
               <button
@@ -56,7 +78,7 @@ const RightSidebar = () => {
         {state.currentTrack && (
           <div className="flex items-center space-x-3 mb-6">
             <HeartButton 
-              track={state.currentTrack} 
+              track={convertToTrack(state.currentTrack)} 
               size="md" 
               variant="ghost"
               className="hover:bg-[#1a1a1a]"
@@ -99,7 +121,7 @@ const RightSidebar = () => {
                 ) // Show next 6 songs or first 6 if no current track
                 .map((track, index) => (
                 <div 
-                  key={`${track.id}-${state.currentIndex + 1 + index}`} 
+                  key={`${track._id || track.id}-${state.currentIndex + 1 + index}`} 
                   className="group flex items-center space-x-3 p-2 rounded-md hover:bg-[#1a1a1a] cursor-pointer"
                 >
                   <div className="flex items-center justify-center w-8 h-8 text-[#a7a7a7] text-sm flex-shrink-0">
@@ -117,7 +139,7 @@ const RightSidebar = () => {
                       {/* Default gradient background */}
                       <div className="absolute inset-0 bg-gradient-to-br from-pink-500 to-orange-500 flex items-center justify-center">
                         <div className="text-white text-sm font-bold opacity-80">
-                          {track.name.charAt(0).toUpperCase()}
+                          {(track.name || track.title || 'Unknown').charAt(0).toUpperCase()}
                         </div>
                       </div>
                       
@@ -146,7 +168,7 @@ const RightSidebar = () => {
                       dispatch({ type: 'SET_CURRENT_INDEX', payload: targetIndex });
                     }}
                   >
-                    <p className="text-white text-sm font-medium truncate">{track.name}</p>
+                    <p className="text-white text-sm font-medium truncate">{track.name || track.title}</p>
                     <p className="text-[#a7a7a7] text-xs truncate">{track.artist_name}</p>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -155,7 +177,7 @@ const RightSidebar = () => {
                       onClick={(e) => e.stopPropagation()}
                     >
                       <HeartButton 
-                        track={track} 
+                        track={convertToTrack(track)} 
                         size="sm" 
                         variant="ghost"
                       />

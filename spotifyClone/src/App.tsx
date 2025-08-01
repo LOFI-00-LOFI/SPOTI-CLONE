@@ -7,6 +7,7 @@ import { LikedSongsProvider } from "@/contexts/LikedSongsContext";
 import { PlaylistProvider } from "@/contexts/PlaylistContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthPromptProvider } from "@/contexts/AuthPromptContext";
+import { NavigationProvider } from "@/contexts/NavigationContext";
 import Index from "./pages/Index";
 import LoginPage from "./components/LoginPage";
 import SignupPage from "./components/SignupPage";
@@ -23,14 +24,16 @@ const App = () => (
             <BrowserRouter>
               <AuthPromptProvider>
                 <MusicPlayerProvider>
-                  <Routes>
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/signup" element={<SignupPage />} />
-                    <Route path="/landing" element={<LandingPage />} />
-                    <Route path="/app" element={<Index />} />
-                    <Route path="/" element={<Index />} />
-                    <Route path="*" element={<Index />} />
-                  </Routes>
+                  <NavigationProvider>
+                    <Routes>
+                      <Route path="/login" element={<LoginPage />} />
+                      <Route path="/signup" element={<SignupPage />} />
+                      <Route path="/landing" element={<LandingPage />} />
+                      <Route path="/app" element={<Index />} />
+                      <Route path="/" element={<Index />} />
+                      <Route path="*" element={<Index />} />
+                    </Routes>
+                  </NavigationProvider>
                 </MusicPlayerProvider>
               </AuthPromptProvider>
             </BrowserRouter>

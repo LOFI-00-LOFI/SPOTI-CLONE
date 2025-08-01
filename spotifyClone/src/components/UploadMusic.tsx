@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Upload, Music, Image, Loader2, CheckCircle, File, Trash2, Plus } from 'lucide-react';
-import { localApi, UploadTrackData } from '@/lib/localApi';
+import { X, Upload, Music, Image as ImageIcon, Loader2, CheckCircle, Trash2 } from 'lucide-react';
+import { UploadTrackData } from '@/types/api';
+import { api } from '@/lib/api';
 import { useToast } from '@/contexts/ToastContext';
 
 interface UploadMusicProps {
@@ -11,15 +12,12 @@ interface UploadMusicProps {
 
 interface FileWithMetadata {
   file: File;
-  id: string;
   metadata: UploadTrackData;
-  isProcessing: boolean;
+  progress: number;
+  error?: string;
 }
 
-const UploadMusic: React.FC<UploadMusicProps> = ({
-  onClose,
-  onUploadSuccess,
-}) => {
+const UploadMusic: React.FC<UploadMusicProps> = ({ onClose, onUploadSuccess }) => {
   const [files, setFiles] = useState<FileWithMetadata[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -50,7 +48,6 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
     const cleanTitle = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ').trim();
     return {
       file,
-      id: `${file.name}-${Date.now()}-${Math.random()}`,
       metadata: {
         title: cleanTitle,
         artist_name: '',
@@ -59,7 +56,8 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
         description: '',
         duration: 0,
       },
-      isProcessing: true,
+      progress: 0,
+      error: undefined,
     };
   };
 
@@ -76,7 +74,7 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
             ...fileWithMetadata.metadata,
             duration: Math.round(audio.duration),
           },
-          isProcessing: false,
+          progress: 100,
         };
         URL.revokeObjectURL(url);
         resolve(updatedFile);
@@ -85,7 +83,8 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
         console.error('Error loading audio metadata for:', fileWithMetadata.file.name);
         const updatedFile = {
           ...fileWithMetadata,
-          isProcessing: false,
+          progress: 0,
+          error: 'Failed to load metadata',
         };
         URL.revokeObjectURL(url);
         resolve(updatedFile);
@@ -118,7 +117,7 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
     // Process each file's metadata asynchronously
     for (const fileWithMetadata of filesWithMetadata) {
       const processedFile = await processAudioFile(fileWithMetadata);
-      setFiles(prev => prev.map(f => f.id === processedFile.id ? processedFile : f));
+      setFiles(prev => prev.map(f => f.file.name === processedFile.file.name ? processedFile : f));
     }
   };
 
@@ -144,13 +143,13 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
     handleFilesAdded(e.dataTransfer.files);
   };
 
-  const removeFile = (id: string) => {
-    setFiles(prev => prev.filter(f => f.id !== id));
+  const removeFile = (name: string) => {
+    setFiles(prev => prev.filter(f => f.file.name !== name));
   };
 
-  const updateFileMetadata = (id: string, field: keyof UploadTrackData, value: string | number) => {
+  const updateFileMetadata = (name: string, field: keyof UploadTrackData, value: string | number) => {
     setFiles(prev => prev.map(f => 
-      f.id === id 
+      f.file.name === name 
         ? { ...f, metadata: { ...f.metadata, [field]: value } }
         : f
     ));
@@ -176,19 +175,19 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
     try {
       if (files.length === 1) {
         // Single file upload
-        await localApi.uploadTrack(files[0].file, null, files[0].metadata);
+        await api.uploadTrack(files[0].file, null, files[0].metadata);
         success('Track uploaded successfully!');
       } else {
         // Multiple file upload
         const audioFiles = files.map(f => f.file);
         const tracksData = files.map(f => f.metadata);
         
-        const result = await localApi.uploadMultipleTracks(audioFiles, tracksData);
+        const response = await api.uploadMultipleTracks(audioFiles, tracksData);
         
-        if (result.errors && result.errors.length > 0) {
-          success(`${result.uploadedTracks.length} tracks uploaded successfully. ${result.errors.length} failed.`);
+        if (response.error) {
+          throw response.error;
         } else {
-          success(`All ${result.uploadedTracks.length} tracks uploaded successfully!`);
+          success(`All ${response.uploadedTracks.length} tracks uploaded successfully!`);
         }
       }
       
@@ -197,6 +196,33 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
     } catch (err) {
       console.error('Upload error:', err);
       error('Failed to upload tracks. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleMultipleUpload = async () => {
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      const audioFiles = files.map(f => f.file);
+      const tracksData = files.map(f => f.metadata);
+      
+      const response = await api.uploadMultipleTracks(audioFiles, tracksData);
+      if (response.error) {
+        throw response.error;
+      }
+      
+      const uploadedTracks = response.data?.uploadedTracks || [];
+      success(`All ${uploadedTracks.length} tracks uploaded successfully!`);
+      onUploadSuccess?.();
+      onClose();
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setFiles(current =>
+        current.map(file => ({ ...file, error: 'Upload failed' }))
+      );
     } finally {
       setIsUploading(false);
     }
@@ -330,14 +356,14 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
               <h3 className="text-white font-medium">Selected Files ({files.length})</h3>
               
               {files.map((fileWithMetadata) => (
-                <div key={fileWithMetadata.id} className="bg-[#1a1a1a] border border-gray-600 rounded-lg p-4">
+                <div key={fileWithMetadata.file.name} className="bg-[#1a1a1a] border border-gray-600 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
                       <div className="flex items-center text-green-500">
-                        {fileWithMetadata.isProcessing ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
+                        {fileWithMetadata.progress === 100 ? (
                           <CheckCircle className="h-5 w-5" />
+                        ) : (
+                          <Loader2 className="h-5 w-5 animate-spin" />
                         )}
                       </div>
                       <div>
@@ -352,7 +378,7 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
                     </div>
                     <button
                       type="button"
-                      onClick={() => removeFile(fileWithMetadata.id)}
+                      onClick={() => removeFile(fileWithMetadata.file.name)}
                       className="text-gray-400 hover:text-red-400 transition-colors p-1"
                     >
                       <Trash2 size={16} />
@@ -366,7 +392,7 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
                       <input
                         type="text"
                         value={fileWithMetadata.metadata.title}
-                        onChange={(e) => updateFileMetadata(fileWithMetadata.id, 'title', e.target.value)}
+                        onChange={(e) => updateFileMetadata(fileWithMetadata.file.name, 'title', e.target.value)}
                         className="w-full bg-[#2a2a2a] border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
                         placeholder="Enter track title"
                         required
@@ -378,7 +404,7 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
                       <input
                         type="text"
                         value={fileWithMetadata.metadata.artist_name}
-                        onChange={(e) => updateFileMetadata(fileWithMetadata.id, 'artist_name', e.target.value)}
+                        onChange={(e) => updateFileMetadata(fileWithMetadata.file.name, 'artist_name', e.target.value)}
                         className="w-full bg-[#2a2a2a] border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
                         placeholder="Enter artist name"
                         required
@@ -390,7 +416,7 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
                       <input
                         type="text"
                         value={fileWithMetadata.metadata.album_name}
-                        onChange={(e) => updateFileMetadata(fileWithMetadata.id, 'album_name', e.target.value)}
+                        onChange={(e) => updateFileMetadata(fileWithMetadata.file.name, 'album_name', e.target.value)}
                         className="w-full bg-[#2a2a2a] border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
                         placeholder="Album name"
                       />
@@ -400,7 +426,7 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
                       <label className="block text-white mb-2 font-medium text-sm">Genre</label>
                       <select
                         value={fileWithMetadata.metadata.genre}
-                        onChange={(e) => updateFileMetadata(fileWithMetadata.id, 'genre', e.target.value)}
+                        onChange={(e) => updateFileMetadata(fileWithMetadata.file.name, 'genre', e.target.value)}
                         className="w-full bg-[#2a2a2a] border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors"
                       >
                         {genres.map(genre => (
@@ -415,7 +441,7 @@ const UploadMusic: React.FC<UploadMusicProps> = ({
                       <label className="block text-white mb-2 font-medium text-sm">Description</label>
                       <textarea
                         value={fileWithMetadata.metadata.description}
-                        onChange={(e) => updateFileMetadata(fileWithMetadata.id, 'description', e.target.value)}
+                        onChange={(e) => updateFileMetadata(fileWithMetadata.file.name, 'description', e.target.value)}
                         className="w-full bg-[#2a2a2a] border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors h-20 resize-none"
                         placeholder="Enter track description (optional)"
                       />

@@ -3,6 +3,7 @@ import { useLikedSongs } from "@/contexts/LikedSongsContext";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
 import { useState, useEffect, useRef } from "react";
 import TrackList from "./TrackList";
+import { useNavigation } from "@/contexts/NavigationContext";
 
 interface LikedSongsPageProps {
   searchQuery: string;
@@ -12,6 +13,7 @@ const LikedSongsPage = ({ searchQuery }: LikedSongsPageProps) => {
   const { likedSongs, likedCount } = useLikedSongs();
   const { playQueue } = useMusicPlayer();
   const [showStickyHeader, setShowStickyHeader] = useState(false);
+  const { setCurrentView } = useNavigation();
   const [showTableHeaderBg, setShowTableHeaderBg] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -194,6 +196,9 @@ const LikedSongsPage = ({ searchQuery }: LikedSongsPageProps) => {
                 </p>
                 <button
                   className="bg-white text-black hover:bg-gray-200 font-bold px-8 py-3 rounded-full inline-flex items-center justify-center"
+                  onClick={() => {
+                    setCurrentView('home');
+                  }}
                 >
                   Find something to like
                 </button>

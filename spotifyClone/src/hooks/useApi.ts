@@ -1,103 +1,116 @@
 import { useQuery } from '@tanstack/react-query';
-import { localApi } from '@/lib/localApi';
-import { useMemo } from 'react';
+import { Track } from '@/types/track';
+import { LocalTrack } from '@/types/api';
+import { api } from '@/lib/api';
 
-// Debounce helper
-const useDebounce = (value: string, delay: number) => {
-  return useMemo(() => {
-    const timeoutId = setTimeout(() => value, delay);
-    return () => clearTimeout(timeoutId);
-  }, [value, delay]);
+// Helper function to get track image
+export const getTrackImage = (track: Track | LocalTrack): string => {
+  if ('album_image' in track) {
+    return track.album_image;
+  }
+  return track.image || '/placeholder.svg';
 };
 
-// Main hooks that the app uses (replaces useJamendoApi)
-export const usePopularTracks = (limit: number = 20) => {
-  return useQuery({
-    queryKey: ['popularTracks', limit],
-    queryFn: () => localApi.getTracks({ limit, order: 'popularity' }),
-    staleTime: 1 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-  });
-};
-
-export const useFeaturedTracks = (limit: number = 20) => {
-  return useQuery({
-    queryKey: ['featuredTracks', limit],
-    queryFn: () => localApi.getFeaturedTracks(limit),
-    staleTime: 1 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-  });
-};
-
-export const useNewReleases = (limit: number = 20) => {
-  return useQuery({
-    queryKey: ['newReleases', limit],
-    queryFn: () => localApi.getNewReleases(limit),
-    staleTime: 1 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-  });
-};
-
-export const useSearchTracks = (query: string, enabled: boolean = false) => {
-  return useQuery({
-    queryKey: ['searchTracks', query.trim()],
-    queryFn: async () => {
-      console.log('Searching for:', query.trim());
-      const result = await localApi.searchTracks(query.trim(), 50);
-      console.log('Search results:', result);
-      return result;
-    },
-    enabled: enabled && !!query && query.trim().length > 0,
-    staleTime: 30 * 1000,
-    gcTime: 2 * 60 * 1000,
-    retry: 1,
-    retryDelay: 1000,
-  });
-};
-
-export const useTracksByGenre = (genre: string, limit: number = 20) => {
-  return useQuery({
-    queryKey: ['tracksByGenre', genre, limit],
-    queryFn: () => localApi.getTracksByGenre(genre, limit),
-    enabled: !!genre,
-    staleTime: 1 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-  });
-};
-
-export const useAllTracks = (params: {
-  page?: number;
-  limit?: number;
-  order?: 'popularity' | 'likes' | 'title' | 'artist' | 'newest';
-  search?: string;
-  genre?: string;
-} = {}) => {
-  return useQuery({
-    queryKey: ['allTracks', params],
-    queryFn: () => localApi.getTracks(params),
-    staleTime: 1 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-  });
-};
-
-
-
-export const useArtists = () => {
-  return useQuery({
-    queryKey: ['artists'],
-    queryFn: () => ({ results: [] }), // Return empty array since we don't have artists
-    staleTime: 1 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-  });
-};
-
-// Helper functions
+// Format duration in seconds to MM:SS
 export const formatDuration = (seconds: number): string => {
+  if (!seconds) return '0:00';
   const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
+  const remainingSeconds = Math.floor(seconds % 60);
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
-export const getTrackImage = (track: any): string => {
-  return track.album_image || track.image || '/placeholder.svg';
+interface ApiResponse<T> {
+  headers: {
+    status: string;
+    code: number;
+    results_count: number;
+  };
+  audios: T[];
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+  };
+}
+
+// Get popular tracks
+export const usePopularTracks = (limit: number = 20) => {
+  return useQuery({
+    queryKey: ['popularTracks', limit],
+    queryFn: async () => {
+      const response = await api.getTracks({ limit, order: 'popularity' });
+      if (response.error) throw response.error;
+      return response.data || { audios: [] };
+    },
+  });
+};
+
+// Get featured tracks
+export const useFeaturedTracks = (limit: number = 20) => {
+  return useQuery({
+    queryKey: ['featuredTracks', limit],
+    queryFn: async () => {
+      const response = await api.getTracks({ limit, order: 'newest' });
+      if (response.error) throw response.error;
+      return response.data || { audios: [] };
+    },
+  });
+};
+
+// Get new releases
+export const useNewReleases = (limit: number = 20) => {
+  return useQuery({
+    queryKey: ['newReleases', limit],
+    queryFn: async () => {
+      const response = await api.getTracks({ limit, order: 'newest' });
+      if (response.error) throw response.error;
+      return response.data || { audios: [] };
+    },
+  });
+};
+
+// Search tracks
+export const useSearchTracks = (query: string) => {
+  return useQuery({
+    queryKey: ['searchTracks', query],
+    queryFn: async () => {
+      if (!query.trim()) return { audios: [] };
+      const response = await api.getTracks({ search: query.trim(), limit: 50 });
+      if (response.error) throw response.error;
+      return response.data || { audios: [] };
+    },
+    enabled: !!query.trim(),
+  });
+};
+
+// Get tracks by genre
+export const useTracksByGenre = (genre: string, limit: number = 20) => {
+  return useQuery({
+    queryKey: ['tracksByGenre', genre, limit],
+    queryFn: async () => {
+      const response = await api.getTracks({ genre, limit });
+      if (response.error) throw response.error;
+      return response.data || { audios: [] };
+    },
+    enabled: !!genre,
+  });
+};
+
+// Get tracks with pagination and filtering
+export const useTracks = (params: {
+  page?: number;
+  limit?: number;
+  order?: 'title' | 'artist' | 'newest' | 'popularity';
+  search?: string;
+  genre?: string;
+}) => {
+  return useQuery({
+    queryKey: ['tracks', params],
+    queryFn: async () => {
+      const response = await api.getTracks(params);
+      if (response.error) throw response.error;
+      return response.data || { audios: [] };
+    },
+  });
 }; 

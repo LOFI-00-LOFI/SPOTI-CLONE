@@ -1,6 +1,6 @@
-import { Heart } from "lucide-react";
+import { Home, Heart, Upload, Music } from "lucide-react";
+import { useNavigation } from "@/contexts/NavigationContext";
 import { useLikedSongs } from "@/contexts/LikedSongsContext";
-import { useNavigation } from "@/pages/Index";
 
 const ThinSidebar = () => {
   const { likedCount } = useLikedSongs();

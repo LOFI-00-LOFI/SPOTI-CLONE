@@ -60,6 +60,11 @@ router.post('/upload', upload.fields([
       folder: 'spotify-clone/audio',
     });
 
+    console.log('Cloudinary audio upload result:', {
+      secure_url: audioResult.secure_url,
+      public_id: audioResult.public_id
+    });
+
     // Upload image if provided
     let imageUrl = '';
     if (imageFile) {
@@ -91,7 +96,19 @@ router.post('/upload', upload.fields([
       description,
     });
 
+    console.log('Creating new audio document:', {
+      title,
+      artist_name,
+      url: audioResult.secure_url,
+      public_id: audioResult.public_id
+    });
+
     await newAudio.save();
+    
+    // Log the saved document
+    const savedAudio = await Audio.findById(newAudio._id);
+    console.log('Saved audio document:', savedAudio);
+    
     res.status(201).json(newAudio);
   } catch (err) {
     res.status(500).json({ error: err.message });

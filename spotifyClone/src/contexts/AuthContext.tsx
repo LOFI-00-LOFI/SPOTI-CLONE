@@ -27,6 +27,7 @@ interface AuthContextType {
 
 // API base URL
 const API_BASE_URL = 'https://spotiapi-khaki.vercel.app/api';
+;
 
 // Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

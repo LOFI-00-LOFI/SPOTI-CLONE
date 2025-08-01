@@ -8,7 +8,9 @@ import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { usePlaylist } from "@/contexts/PlaylistContext";
-import { useNavigation } from "@/pages/Index";
+import { useNavigation } from "@/contexts/NavigationContext";
+import { Track } from "@/types/track";
+import { LocalTrack } from "@/types/api";
 
 interface MainContentProps {
   searchQuery: string;
@@ -118,20 +120,42 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
     setOverlayOpacity(0);
   };
 
+  // Convert backend tracks to frontend format
+  const convertToFrontendTrack = (track: LocalTrack): Track => ({
+    id: track._id,
+    name: track.title,
+    artist_name: track.artist_name,
+    album_name: track.album_name,
+    duration: track.duration,
+    audio: track.url,
+    image: track.image || '/placeholder-album.jpg',
+    album_image: track.image || '/placeholder-album.jpg',
+    audiodownload_allowed: true,
+    // Include backend properties
+    _id: track._id,
+    title: track.title,
+    url: track.url,
+    public_id: track.public_id,
+    genre: track.genre,
+    description: track.description,
+    createdAt: track.createdAt,
+    updatedAt: track.updatedAt
+  });
+
   // API hooks
   const { data: popularTracks, isLoading: loadingPopular } = usePopularTracks(12);
   const { data: featuredTracks, isLoading: loadingFeatured } = useFeaturedTracks(50);
   const { data: newReleases, isLoading: loadingNew } = useNewReleases(10);
-  const { data: searchResults, isLoading: loadingSearch, error: searchError } = useSearchTracks(searchQuery, searchQuery.length > 0);
+  const { data: searchResults, isLoading: loadingSearch, error: searchError } = useSearchTracks(searchQuery);
 
-  const quickPlayTracks = popularTracks?.results.slice(0, 6) || [];
+  const quickPlayTracks = popularTracks?.audios?.map(convertToFrontendTrack) || [];
   
-  const handlePlayAlbum = (tracks: any[]) => {
+  const handlePlayAlbum = (tracks: Track[]) => {
     if (tracks.length > 0) {
       if (!isAuthenticated) {
-        requireAuth('play', () => playQueue(tracks), tracks[0]?.name);
+        requireAuth('play', () => playQueue(tracks, 0, 'general'), tracks[0]?.name);
       } else {
-        playQueue(tracks);
+        playQueue(tracks, 0, 'general');
       }
     }
   };
@@ -204,9 +228,9 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
                   <div className="text-[#ff6b6b]">Error searching: {searchError.message}</div>
                   <p className="text-[#a7a7a7] mt-2">Please try again</p>
                 </div>
-              ) : searchResults && searchResults.results.length > 0 ? (
+              ) : searchResults && searchResults.audios?.length > 0 ? (
                 <SongCardGrid 
-                  tracks={searchResults.results} 
+                  tracks={searchResults.audios?.map(convertToFrontendTrack) || []} 
                   onCardHover={handleCardHover}
                   onCardLeave={handleCardLeave}
                 />
@@ -227,7 +251,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
                 {quickPlayTracks.map((track, index) => (
                   <div
-                    key={track.id}
+                    key={track._id || track.id}
                     className="group bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-lg p-4 flex items-center gap-4 transition-all duration-300 cursor-pointer"
                     onClick={() => handlePlayAlbum([track])}
                     onMouseEnter={() => handleCardHover(index)}
@@ -237,7 +261,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
                       {/* Default gradient background */}
                       <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
                         <div className="text-white text-lg font-bold opacity-80">
-                          {track.name.charAt(0).toUpperCase()}
+                          {(track.title || track.name || 'Unknown').charAt(0).toUpperCase()}
                         </div>
                       </div>
                       
@@ -245,7 +269,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
                       {track.album_image || track.image ? (
                         <img
                           src={track.album_image || track.image}
-                          alt={track.name}
+                          alt={track.title || track.name}
                           className="absolute inset-0 w-full h-full object-cover"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
@@ -255,7 +279,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
                       ) : null}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-white truncate">{track.name}</h3>
+                      <h3 className="font-semibold text-white truncate">{track.title || track.name}</h3>
                       <p className="text-sm text-white/70 truncate">{track.artist_name}</p>
                     </div>
                     <button
@@ -283,7 +307,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
           {!searchQuery && activeTab === 'all' && (
             <>
               {/* Featured Tracks */}
-              {(loadingFeatured || (featuredTracks && featuredTracks.results.length > 0)) && (
+              {(loadingFeatured || (featuredTracks && featuredTracks.audios?.length > 0)) && (
                 <section className="mb-8">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-bold text-white">Featured Tracks</h2>
@@ -292,7 +316,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
                     <CarouselSkeleton />
                   ) : (
                     <SongCardCarousel 
-                      tracks={featuredTracks.results} 
+                      tracks={featuredTracks.audios?.map(convertToFrontendTrack) || []} 
                       onCardLeave={handleCardLeave}
                     />
                   )}
@@ -300,7 +324,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
               )}
 
               {/* New Releases */}
-              {(loadingNew || (newReleases && newReleases.results.length > 0)) && (
+              {(loadingNew || (newReleases && newReleases.audios?.length > 0)) && (
                 <section className="mb-8">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-bold text-white">New Releases</h2>
@@ -309,7 +333,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
                     <CarouselSkeleton />
                   ) : (
                     <SongCardCarousel 
-                      tracks={newReleases.results} 
+                      tracks={newReleases.audios?.map(convertToFrontendTrack) || []} 
                       onCardLeave={handleCardLeave}
                     />
                   )}
@@ -317,7 +341,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
               )}
 
               {/* All Popular Tracks */}
-              {(loadingPopular || (popularTracks && popularTracks.results.length > 0)) && (
+              {(loadingPopular || (popularTracks && popularTracks.audios?.length > 0)) && (
                 <section className="mb-8">
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-2xl font-bold text-white">Popular Tracks</h2>
@@ -325,7 +349,7 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
                   {loadingPopular ? (
                     <TrackListSkeleton />
                   ) : (
-                    <TrackList tracks={popularTracks.results} />
+                    <TrackList tracks={popularTracks.audios?.map(convertToFrontendTrack) || []} />
                   )}
                 </section>
               )}
@@ -340,8 +364,8 @@ const MainContent = ({ searchQuery }: MainContentProps) => {
               </div>
               {loadingPopular ? (
                 <TrackListSkeleton />
-              ) : popularTracks && popularTracks.results.length > 0 ? (
-                <TrackList tracks={popularTracks.results} />
+              ) : popularTracks && popularTracks.audios?.length > 0 ? (
+                <TrackList tracks={popularTracks.audios?.map(convertToFrontendTrack) || []} />
               ) : (
                 <div className="text-center py-16">
                   <div className="text-[#a7a7a7] text-lg mb-4">No music available</div>

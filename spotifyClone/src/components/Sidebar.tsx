@@ -3,12 +3,14 @@ import { useState, useEffect } from "react";
 import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
 import { useLikedSongs } from "@/contexts/LikedSongsContext";
 import { usePlaylist } from "@/contexts/PlaylistContext";
-import { useNavigation } from "@/pages/Index";
+import { useNavigation } from "@/contexts/NavigationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import CreatePlaylistModal from "./CreatePlaylistModal";
 
-const Sidebar = () => {
+interface SidebarProps {}
+
+const Sidebar: React.FC<SidebarProps> = () => {
   const { state } = useMusicPlayer();
   const { likedCount } = useLikedSongs();
   const { state: playlistState, loadMyPlaylists } = usePlaylist();

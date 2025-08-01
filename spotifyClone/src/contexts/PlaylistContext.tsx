@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { localApi, Playlist, CreatePlaylistData } from '@/lib/localApi';
+import { Playlist, CreatePlaylistData } from '@/types/api';
 import { useToast } from './ToastContext';
+import { api } from '@/lib/api';
 
 interface PlaylistState {
   playlists: Playlist[];
@@ -43,7 +44,13 @@ function playlistReducer(state: PlaylistState, action: PlaylistAction): Playlist
       return { ...state, playlists: action.payload, isLoading: false, error: null };
     
     case 'SET_PUBLIC_PLAYLISTS':
-      const combinedWithPublic = [...action.payload, ...state.userPlaylists];
+      // Combine playlists, removing duplicates by _id
+      const combinedWithPublic = [
+        ...action.payload,
+        ...state.userPlaylists.filter(userPlaylist => 
+          !action.payload.some(publicPlaylist => publicPlaylist._id === userPlaylist._id)
+        )
+      ];
       return {
         ...state,
         publicPlaylists: action.payload,
@@ -53,7 +60,13 @@ function playlistReducer(state: PlaylistState, action: PlaylistAction): Playlist
       };
     
     case 'SET_USER_PLAYLISTS':
-      const combinedWithUser = [...state.publicPlaylists, ...action.payload];
+      // Combine playlists, removing duplicates by _id
+      const combinedWithUser = [
+        ...state.publicPlaylists,
+        ...action.payload.filter(userPlaylist => 
+          !state.publicPlaylists.some(publicPlaylist => publicPlaylist._id === userPlaylist._id)
+        )
+      ];
       return {
         ...state,
         userPlaylists: action.payload,
@@ -123,136 +136,155 @@ export const PlaylistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Load all public playlists
   const loadPlaylists = async () => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      const response = await localApi.getPlaylists({ limit: 100 });
-      dispatch({ type: 'SET_PUBLIC_PLAYLISTS', payload: response.playlists });
-    } catch (error) {
-      console.error('Failed to load playlists:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to load playlists';
-      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+    dispatch({ type: 'SET_LOADING', payload: true });
+    const response = await api.getPlaylists({ limit: 100 });
+    
+    if (response.error) {
+      console.error('Failed to load playlists:', response.error);
+      dispatch({ type: 'SET_ERROR', payload: response.error.message });
       showError('Failed to load playlists');
+      return;
+    }
+
+    if (response.data) {
+      dispatch({ type: 'SET_PUBLIC_PLAYLISTS', payload: response.data.playlists });
     }
   };
 
   // Load user's own playlists
   const loadMyPlaylists = async () => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      const response = await localApi.getMyPlaylists({ limit: 100 });
-      dispatch({ type: 'SET_USER_PLAYLISTS', payload: response.playlists });
-    } catch (error) {
-      console.error('Failed to load my playlists:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to load my playlists';
-      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+    dispatch({ type: 'SET_LOADING', payload: true });
+    const response = await api.getMyPlaylists({ limit: 100 });
+    
+    if (response.error) {
+      console.error('Failed to load my playlists:', response.error);
+      dispatch({ type: 'SET_ERROR', payload: response.error.message });
       showError('Failed to load my playlists');
+      return;
+    }
+
+    if (response.data) {
+      dispatch({ type: 'SET_USER_PLAYLISTS', payload: response.data.playlists });
     }
   };
 
   // Create new playlist
   const createPlaylist = async (data: CreatePlaylistData, imageFile?: File): Promise<Playlist | null> => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      const newPlaylist = await localApi.createPlaylist(data, imageFile) as Playlist;
-      dispatch({ type: 'ADD_PLAYLIST', payload: newPlaylist });
-      success('Playlist created successfully!');
-      return newPlaylist;
-    } catch (error) {
-      console.error('Failed to create playlist:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create playlist';
-      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+    dispatch({ type: 'SET_LOADING', payload: true });
+    const response = await api.createPlaylist(data, imageFile);
+    
+    if (response.error) {
+      console.error('Failed to create playlist:', response.error);
+      dispatch({ type: 'SET_ERROR', payload: response.error.message });
       showError('Failed to create playlist');
       return null;
     }
+
+    if (response.data) {
+      dispatch({ type: 'ADD_PLAYLIST', payload: response.data });
+      success('Playlist created successfully!');
+      return response.data;
+    }
+    return null;
   };
 
   // Update playlist
   const updatePlaylist = async (id: string, data: Partial<CreatePlaylistData>, imageFile?: File) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      const updatedPlaylist = await localApi.updatePlaylist(id, data, imageFile) as Playlist;
-      dispatch({ type: 'UPDATE_PLAYLIST', payload: updatedPlaylist });
-      success('Playlist updated successfully!');
-    } catch (error) {
-      console.error('Failed to update playlist:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update playlist';
-      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+    dispatch({ type: 'SET_LOADING', payload: true });
+    const response = await api.updatePlaylist(id, data, imageFile);
+    
+    if (response.error) {
+      console.error('Failed to update playlist:', response.error);
+      dispatch({ type: 'SET_ERROR', payload: response.error.message });
       showError('Failed to update playlist');
+      return;
+    }
+
+    if (response.data) {
+      dispatch({ type: 'UPDATE_PLAYLIST', payload: response.data });
+      success('Playlist updated successfully!');
     }
   };
 
   // Delete playlist
   const deletePlaylist = async (id: string) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      await localApi.deletePlaylist(id);
-      dispatch({ type: 'DELETE_PLAYLIST', payload: id });
-      success('Playlist deleted successfully!');
-    } catch (error) {
-      console.error('Failed to delete playlist:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete playlist';
-      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+    dispatch({ type: 'SET_LOADING', payload: true });
+    const response = await api.deletePlaylist(id);
+    
+    if (response.error) {
+      console.error('Failed to delete playlist:', response.error);
+      dispatch({ type: 'SET_ERROR', payload: response.error.message });
       showError('Failed to delete playlist');
+      return;
     }
+
+    dispatch({ type: 'DELETE_PLAYLIST', payload: id });
+    success('Playlist deleted successfully!');
   };
 
   // Add track to playlist
   const addTrackToPlaylist = async (playlistId: string, trackId: string) => {
-    try {
-      const updatedPlaylist = await localApi.addTrackToPlaylist(playlistId, trackId) as Playlist;
-      dispatch({ type: 'UPDATE_PLAYLIST', payload: updatedPlaylist });
-      success('Track added to playlist!');
-    } catch (error) {
-      console.error('Failed to add track to playlist:', error);
+    const response = await api.addTrackToPlaylist(playlistId, trackId);
+    
+    if (response.error) {
+      console.error('Failed to add track to playlist:', response.error);
       showError('Failed to add track to playlist');
+      return;
+    }
+
+    if (response.data) {
+      dispatch({ type: 'UPDATE_PLAYLIST', payload: response.data });
+      success('Track added to playlist!');
     }
   };
 
   // Remove track from playlist
   const removeTrackFromPlaylist = async (playlistId: string, trackId: string) => {
-    try {
-      const updatedPlaylist = await localApi.removeTrackFromPlaylist(playlistId, trackId) as Playlist;
-      dispatch({ type: 'UPDATE_PLAYLIST', payload: updatedPlaylist });
-      success('Track removed from playlist!');
-    } catch (error) {
-      console.error('Failed to remove track from playlist:', error);
+    const response = await api.removeTrackFromPlaylist(playlistId, trackId);
+    
+    if (response.error) {
+      console.error('Failed to remove track from playlist:', response.error);
       showError('Failed to remove track from playlist');
+      return;
+    }
+
+    if (response.data) {
+      dispatch({ type: 'UPDATE_PLAYLIST', payload: response.data });
+      success('Track removed from playlist!');
     }
   };
 
   // Load single playlist by ID
   const loadPlaylistById = async (id: string) => {
-    try {
-      // Check if playlist exists in current state before making API call
-      const playlistExists = state.playlists.some(p => p._id === id);
-      
-      // If playlists are loaded but playlist doesn't exist, don't make API call
-      if (state.playlists.length > 0 && !playlistExists) {
-        console.warn(`Playlist with ID ${id} not found in current playlists, skipping API call`);
-        dispatch({ type: 'SET_CURRENT_PLAYLIST', payload: null });
-        dispatch({ type: 'SET_LOADING', payload: false });
-        return;
-      }
-      
-      dispatch({ type: 'SET_LOADING', payload: true });
-      const playlist = await localApi.getPlaylistById(id);
-      
-      // Handle case where playlist was not found (deleted)
-      if (playlist === null) {
-        console.warn(`Playlist with ID ${id} not found (may have been deleted)`);
-        dispatch({ type: 'SET_CURRENT_PLAYLIST', payload: null });
-        dispatch({ type: 'SET_LOADING', payload: false });
-        return;
-      }
-      
-      dispatch({ type: 'SET_CURRENT_PLAYLIST', payload: playlist });
+    // Check if playlist exists in current state before making API call
+    const playlistExists = state.playlists.some(p => p._id === id);
+    
+    // If playlists are loaded but playlist doesn't exist, don't make API call
+    if (state.playlists.length > 0 && !playlistExists) {
+      console.warn(`Playlist with ID ${id} not found in current playlists, skipping API call`);
+      dispatch({ type: 'SET_CURRENT_PLAYLIST', payload: null });
       dispatch({ type: 'SET_LOADING', payload: false });
-    } catch (error) {
-      console.error('Failed to load playlist:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to load playlist';
-      dispatch({ type: 'SET_ERROR', payload: errorMessage });
-      showError('Failed to load playlist');
+      return;
     }
+    
+    dispatch({ type: 'SET_LOADING', payload: true });
+    const response = await api.getPlaylistById(id);
+    
+    if (response.error) {
+      console.error('Failed to load playlist:', response.error);
+      dispatch({ type: 'SET_ERROR', payload: response.error.message });
+      showError('Failed to load playlist');
+      return;
+    }
+
+    if (response.data === null) {
+      console.warn(`Playlist with ID ${id} not found (may have been deleted)`);
+      dispatch({ type: 'SET_CURRENT_PLAYLIST', payload: null });
+    } else {
+      dispatch({ type: 'SET_CURRENT_PLAYLIST', payload: response.data });
+    }
+    
+    dispatch({ type: 'SET_LOADING', payload: false });
   };
 
   // Clear error

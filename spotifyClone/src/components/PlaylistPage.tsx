@@ -4,8 +4,8 @@ import { useMusicPlayer } from "@/contexts/MusicPlayerContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAuthPrompt } from "@/contexts/AuthPromptContext";
 import { useState, useEffect, useRef } from "react";
-import { useNavigation } from "@/pages/Index";
-import { Playlist, LocalTrack } from "@/lib/localApi";
+import { useNavigation } from "@/contexts/NavigationContext";
+import { Playlist, LocalTrack } from "@/types/api";
 import PlaylistTrackList from "./PlaylistTrackList";
 import { Track } from "@/types/track";
 
@@ -17,7 +17,7 @@ interface PlaylistPageProps {
 const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
   const { state, loadPlaylistById, removeTrackFromPlaylist, deletePlaylist } = usePlaylist();
   const { playQueue } = useMusicPlayer();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { requireAuth } = useAuthPrompt();
   const { setCurrentView } = useNavigation();
   const [showStickyHeader, setShowStickyHeader] = useState(false);
@@ -27,6 +27,10 @@ const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
 
   // Find the current playlist
   const playlist = state.playlists.find(p => p._id === playlistId) || state.currentPlaylist;
+  
+  // Check if current user is the playlist owner
+  const isPlaylistOwner = playlist?.createdBy && typeof playlist.createdBy !== 'string' && 
+    user && playlist.createdBy._id === user.id;
 
   // Load playlist if not found in state
   useEffect(() => {
@@ -59,53 +63,113 @@ const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
     }
   }, [playlist, playlistId, state.playlists, setCurrentView]);
 
-  // Convert playlist tracks to Track format for compatibility
-  const convertedTracks: Track[] = playlist?.tracks.map((track: LocalTrack) => ({
-    id: track._id,
-    name: track.title,
-    duration: track.duration,
-    artist_name: track.artist_name,
-    artist_id: track._id,
-    album_name: track.album_name,
-    album_id: track._id,
-    album_image: track.image || '/placeholder-album.jpg',
-    audio: track.url,
-    audiodownload: track.url,
-    prourl: '',
-    shorturl: '',
-    shareurl: '',
-    waveform: '',
-    image: track.image || '/placeholder-album.jpg',
-    audiodownload_allowed: true,
-  })) || [];
-
   // Filter tracks based on search query
-  const filteredTracks = searchQuery.length > 0 
-    ? convertedTracks.filter(track => 
-        track.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const filteredBackendTracks = searchQuery.length > 0 
+    ? playlist?.tracks.filter((track: any) => 
+        track.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         track.artist_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        track.album_name.toLowerCase().includes(searchQuery.toLowerCase())
+        track.album_name?.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : convertedTracks;
+    : playlist?.tracks || [];
 
-  const handlePlayAll = () => {
-    if (filteredTracks.length > 0) {
-      if (!isAuthenticated) {
-        requireAuth('play', () => playQueue(filteredTracks, 0), filteredTracks[0]?.name);
-      } else {
-        playQueue(filteredTracks, 0);
-      }
+  // Convert filtered backend tracks to frontend format for display
+  const filteredTracks: Track[] = filteredBackendTracks.map((track: any) => {
+    return {
+      id: track._id,
+      name: track.title,
+      duration: track.duration,
+      artist_name: track.artist_name,
+      artist_id: track._id,
+      album_name: track.album_name || 'Single',
+      album_id: track._id,
+      album_image: track.image || '/placeholder-album.jpg',
+      audio: track.url, // This is the audio URL from the backend
+      audiodownload: track.url,
+      prourl: '',
+      shorturl: '',
+      shareurl: '',
+      waveform: '',
+      image: track.image || '/placeholder-album.jpg',
+      audiodownload_allowed: true,
+    };
+  });
+
+  const handlePlayAll = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!playlist || !playlist.tracks || playlist.tracks.length === 0) return;
+
+    // Convert backend tracks to frontend format
+    const frontendTracks = playlist.tracks.map(track => ({
+      id: track._id,
+      name: track.title,
+      artist_name: track.artist_name,
+      album_name: track.album_name,
+      duration: track.duration,
+      audio: track.url,
+      image: track.image || '/placeholder-album.jpg',
+      album_image: track.image || '/placeholder-album.jpg',
+      audiodownload_allowed: true,
+      // Include backend properties
+      _id: track._id,
+      title: track.title,
+      url: track.url,
+      public_id: track.public_id,
+      genre: track.genre,
+      description: track.description,
+      createdAt: track.createdAt,
+      updatedAt: track.updatedAt
+    }));
+
+    // Log the tracks we're trying to play
+    console.log('Original playlist tracks (raw):', JSON.stringify(playlist.tracks, null, 2));
+    console.log('First track details:', {
+      url: frontendTracks[0]?.audio,
+      name: frontendTracks[0]?.name,
+      id: frontendTracks[0]?.id
+    });
+
+    if (!isAuthenticated) {
+      requireAuth('play', () => playQueue(frontendTracks, 0, 'general'), frontendTracks[0]?.name);
+    } else {
+      playQueue(frontendTracks, 0, 'general');
     }
   };
 
-  const handleShuffle = () => {
-    if (filteredTracks.length > 0) {
-      const shuffled = [...filteredTracks].sort(() => Math.random() - 0.5);
-      if (!isAuthenticated) {
-        requireAuth('play', () => playQueue(shuffled, 0), shuffled[0]?.name);
-      } else {
-        playQueue(shuffled, 0);
-      }
+  const handleShuffle = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!playlist || !playlist.tracks || playlist.tracks.length === 0) return;
+
+    // Convert backend tracks to frontend format
+    const frontendTracks = playlist.tracks.map(track => ({
+      id: track._id,
+      name: track.title,
+      artist_name: track.artist_name,
+      album_name: track.album_name,
+      duration: track.duration,
+      audio: track.url,
+      image: track.image || '/placeholder-album.jpg',
+      album_image: track.image || '/placeholder-album.jpg',
+      audiodownload_allowed: true,
+      // Include backend properties
+      _id: track._id,
+      title: track.title,
+      url: track.url,
+      public_id: track.public_id,
+      genre: track.genre,
+      description: track.description,
+      createdAt: track.createdAt,
+      updatedAt: track.updatedAt
+    }));
+
+    // Shuffle the tracks
+    const shuffledTracks = [...frontendTracks];
+    for (let i = shuffledTracks.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledTracks[i], shuffledTracks[j]] = [shuffledTracks[j], shuffledTracks[i]];
+    }
+
+    if (!isAuthenticated) {
+      requireAuth('play', () => playQueue(shuffledTracks, 0, 'general'), shuffledTracks[0]?.name);
+    } else {
+      playQueue(shuffledTracks, 0, 'general');
     }
   };
 
@@ -118,8 +182,9 @@ const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
   const handleDeletePlaylist = async () => {
     if (playlist) {
       await deletePlaylist(playlist._id);
-      // Navigate to home after deletion
-      setCurrentView('home');
+      setShowDeleteConfirm(false);
+      // The playlist will be removed from state in the context
+      // and the useEffect will handle navigation
     }
   };
 
@@ -304,59 +369,60 @@ const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
               <Download className="h-5 w-5" />
             </button>
             
-            {/* More Options */}
-            <div className="relative">
-              <button
-                className="text-[#a7a7a7] hover:text-white h-8 w-8 hover:bg-[#ffffff10] inline-flex items-center justify-center rounded"
-                onClick={() => {
-                  if (!isAuthenticated) {
-                    requireAuth('playlist', () => setShowDeleteConfirm(true), `manage ${playlist?.name}`);
-                  } else {
-                    setShowDeleteConfirm(!showDeleteConfirm);
-                  }
-                }}
-              >
-                <MoreHorizontal className="h-5 w-5" />
-              </button>
+            {/* More Options - Only show for playlist owner */}
+            {isPlaylistOwner && (
+              <div className="relative">
+                <button
+                  className="text-[#a7a7a7] hover:text-white h-8 w-8 hover:bg-[#ffffff10] inline-flex items-center justify-center rounded"
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      requireAuth('playlist', () => setShowDeleteConfirm(true), `manage ${playlist?.name}`);
+                    } else {
+                      setShowDeleteConfirm(!showDeleteConfirm);
+                    }
+                  }}
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </button>
 
-              {/* Dropdown Menu */}
-              {showDeleteConfirm && (
-                <div className="absolute top-10 left-0 bg-[#282828] border border-[#404040] rounded-md shadow-xl py-2 w-48 z-30">
-                  <button
-                    onClick={() => {
-                      if (!isAuthenticated) {
-                        requireAuth('playlist', () => {
+                {/* Dropdown Menu */}
+                {showDeleteConfirm && (
+                  <div className="absolute top-10 left-0 bg-[#282828] border border-[#404040] rounded-md shadow-xl py-2 w-48 z-30">
+                    <button
+                      onClick={() => {
+                        if (!isAuthenticated) {
+                          requireAuth('playlist', () => {
+                            // TODO: Implement edit functionality
+                            console.log('Edit playlist functionality coming soon');
+                          }, `edit ${playlist?.name}`);
+                        } else {
                           // TODO: Implement edit functionality
                           console.log('Edit playlist functionality coming soon');
-                        }, `edit ${playlist?.name}`);
-                      } else {
-                        // TODO: Implement edit functionality
-                        console.log('Edit playlist functionality coming soon');
-                      }
-                      setShowDeleteConfirm(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-white hover:bg-[#404040] transition-colors flex items-center gap-3"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                    Edit details
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!isAuthenticated) {
-                        requireAuth('playlist', () => handleDeletePlaylist(), `delete ${playlist?.name}`);
-                      } else {
-                        handleDeletePlaylist();
-                      }
-                      setShowDeleteConfirm(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-red-400 hover:bg-[#404040] transition-colors flex items-center gap-3"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete playlist
-                  </button>
-                </div>
-              )}
-            </div>
+                        }
+                        setShowDeleteConfirm(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-white hover:bg-[#404040] transition-colors flex items-center gap-3"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                      Edit details
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!isAuthenticated) {
+                          requireAuth('playlist', () => handleDeletePlaylist(), `delete ${playlist?.name}`);
+                        } else {
+                          handleDeletePlaylist();
+                        }
+                      }}
+                      className="w-full px-4 py-2 text-left text-red-400 hover:bg-[#404040] transition-colors flex items-center gap-3"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete playlist
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           
           {/* List View Toggle */}
@@ -405,7 +471,7 @@ const PlaylistPage = ({ playlistId, searchQuery }: PlaylistPageProps) => {
                 <button
                   className="bg-white text-black hover:bg-gray-200 font-bold px-8 py-3 rounded-full inline-flex items-center justify-center"
                   onClick={() => {
-                    // TODO: Navigate to search/browse to add songs
+                    setCurrentView('home');
                   }}
                 >
                   Find something to add

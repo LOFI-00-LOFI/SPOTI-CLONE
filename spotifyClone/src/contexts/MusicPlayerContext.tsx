@@ -1,33 +1,15 @@
 import React, { createContext, useContext, useReducer, useRef, useEffect } from 'react';
-import { localApi } from '@/lib/localApi';
-
-// Define track interface based on local API
-interface LocalTrack {
-  id: string;
-  name: string;
-  duration: number;
-  artist_name: string;
-  artist_id: string;
-  album_name: string;
-  album_id: string;
-  album_image: string;
-  audio: string;
-  audiodownload: string;
-  prourl: string;
-  shorturl: string;
-  shareurl: string;
-  waveform: string;
-  image: string;
-  audiodownload_allowed: boolean;
-}
+import { Track, BackendTrack, FrontendTrack } from '@/types/track';
+import { LocalTrack } from '@/types/api';
+import { api } from '@/lib/api';
 
 interface MusicPlayerState {
-  currentTrack: LocalTrack | null;
+  currentTrack: Track | null;
   isPlaying: boolean;
   currentTime: number;
   duration: number;
   volume: number;
-  queue: LocalTrack[];
+  queue: Track[];
   currentIndex: number;
   shuffle: boolean;
   repeat: 'none' | 'once' | 'forever';
@@ -36,8 +18,9 @@ interface MusicPlayerState {
 }
 
 type MusicPlayerAction =
-  | { type: 'SET_TRACK'; payload: { track: LocalTrack; index: number } }
-  | { type: 'SET_QUEUE'; payload: LocalTrack[] }
+  | { type: 'SET_TRACK'; payload: { track: Track; index: number } }
+  | { type: 'SET_QUEUE'; payload: Track[] }
+  | { type: 'SET_CURRENT_INDEX'; payload: number }
   | { type: 'PLAY' }
   | { type: 'PAUSE' }
   | { type: 'SET_TIME'; payload: number }
@@ -144,6 +127,16 @@ function musicPlayerReducer(state: MusicPlayerState, action: MusicPlayerAction):
     case 'SET_SHUFFLE_INDEX':
       return { ...state, shuffleIndex: action.payload };
     
+    case 'SET_CURRENT_INDEX':
+      const track = state.queue[action.payload];
+      if (!track) return state;
+      return {
+        ...state,
+        currentTrack: track,
+        currentIndex: action.payload,
+        isPlaying: true
+      };
+    
     default:
       return state;
   }
@@ -151,8 +144,8 @@ function musicPlayerReducer(state: MusicPlayerState, action: MusicPlayerAction):
 
 interface MusicPlayerContextType {
   state: MusicPlayerState;
-  playTrack: (track: LocalTrack) => void;
-  playQueue: (tracks: LocalTrack[], startIndex?: number) => void;
+  playTrack: (track: Track | LocalTrack) => void;
+  playQueue: (tracks: (Track | LocalTrack)[], startIndex?: number, source?: 'liked-songs' | 'general') => void;
   togglePlay: () => void;
   nextTrack: () => void;
   previousTrack: () => void;
@@ -173,12 +166,72 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const audioRef = useRef<HTMLAudioElement>(null);
   const repeatOnceTracker = useRef<string | null>(null); // Track which song has been repeated once
 
+  // Type guards
+  const isBackendTrack = (track: any): track is LocalTrack => {
+    return '_id' in track && 'title' in track && !('audio' in track);
+  };
+
+  const isFrontendTrack = (track: any): track is Track => {
+    return 'id' in track && 'name' in track && 'audio' in track;
+  };
+
+  // Convert backend track to frontend format
+  const convertToFrontendTrack = (track: LocalTrack): Track => ({
+    id: track._id,
+    name: track.title,
+    artist_name: track.artist_name,
+    album_name: track.album_name,
+    duration: track.duration,
+    audio: track.url,
+    image: track.image || '/placeholder-album.jpg',
+    album_image: track.image || '/placeholder-album.jpg',
+    audiodownload_allowed: true,
+    // Include backend properties
+    _id: track._id,
+    title: track.title,
+    url: track.url,
+    public_id: track.public_id,
+    genre: track.genre,
+    description: track.description,
+    createdAt: track.createdAt,
+    updatedAt: track.updatedAt
+  });
+
+  // Get track ID based on track format
+  const getTrackId = (track: Track | LocalTrack): string => {
+    if (isBackendTrack(track)) {
+      return track._id;
+    }
+    return track.id;
+  };
+
+  // Get track audio URL based on track format
+  const getTrackAudio = (track: Track | LocalTrack): string => {
+    if (isBackendTrack(track)) {
+      return track.url;
+    }
+    return track.audio;
+  };
+
+  // Get track name based on format
+  const getTrackName = (track: Track | LocalTrack): string => {
+    if (isBackendTrack(track)) {
+      return track.title;
+    }
+    return track.name;
+  };
+
   // Load initial songs
   const loadInitialRandomSongs = async () => {
     try {
-      const response = await localApi.getTracks({ order: 'newest', limit: 50, page: 1 });
-      if (response.results?.length) {
-        dispatch({ type: 'SET_QUEUE', payload: response.results });
+      const response = await api.getTracks({ order: 'newest', limit: 50, page: 1 });
+      if (response.error) {
+        console.error('Failed to load songs:', response.error);
+        return;
+      }
+      if (response.data?.audios?.length) {
+        const tracks = response.data.audios.map(convertToFrontendTrack);
+        dispatch({ type: 'SET_QUEUE', payload: tracks });
         dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
       }
     } catch (error) {
@@ -189,13 +242,18 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Load more tracks
   const loadMoreTracks = async () => {
     try {
-      const response = await localApi.getTracks({ 
+      const response = await api.getTracks({ 
         order: 'newest', 
         limit: 50, 
         page: Math.floor(state.queue.length / 50) + 1 
       });
-      if (response.results?.length) {
-        dispatch({ type: 'SET_QUEUE', payload: [...state.queue, ...response.results] });
+      if (response.error) {
+        console.error('Failed to load more tracks:', response.error);
+        return;
+      }
+      if (response.data?.audios?.length) {
+        const tracks = response.data.audios.map(convertToFrontendTrack);
+        dispatch({ type: 'SET_QUEUE', payload: [...state.queue, ...tracks] });
         dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
       }
     } catch (error) {
@@ -282,11 +340,79 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     const audio = audioRef.current;
     if (audio && state.currentTrack) {
-      audio.src = state.currentTrack.audio;
-      audio.volume = state.volume;
-      audio.load();
+      try {
+        // Get the audio URL from either format
+        let audioUrl = getTrackAudio(state.currentTrack);
+        console.log('Playing track:', {
+          track: state.currentTrack,
+          audioUrl,
+          format: isBackendTrack(state.currentTrack) ? 'backend' : 'frontend',
+          name: getTrackName(state.currentTrack),
+          id: getTrackId(state.currentTrack)
+        });
+
+        // Ensure URL is valid and uses HTTPS
+        if (!audioUrl) {
+          console.error('No audio URL found for track:', state.currentTrack);
+          throw new Error('No audio URL found');
+        }
+
+        const url = new URL(audioUrl);
+        if (url.protocol === 'http:') {
+          audioUrl = audioUrl.replace('http:', 'https:');
+        }
+        
+        // Set audio source and properties
+        audio.src = audioUrl;
+        audio.crossOrigin = 'anonymous';
+        audio.volume = state.volume;
+        audio.load();
+
+        // Add event listeners
+        const handlePlay = () => {
+          console.log('Audio play event fired');
+          dispatch({ type: 'PLAY' });
+        };
+        const handlePause = () => {
+          console.log('Audio pause event fired');
+          dispatch({ type: 'PAUSE' });
+        };
+        const handleError = (e: ErrorEvent) => {
+          console.error('Audio playback error:', e);
+          console.error('Failed track:', {
+            ...state.currentTrack,
+            url: audioUrl,
+            error: audio.error?.message || 'Unknown error'
+          });
+          // Try to automatically move to next track on error
+          nextTrack();
+        };
+
+        audio.addEventListener('play', handlePlay);
+        audio.addEventListener('pause', handlePause);
+        audio.addEventListener('error', handleError);
+
+        // If was playing before track change, start playing new track
+        if (state.isPlaying) {
+          console.log('Attempting to play track:', audioUrl);
+          audio.play().catch(error => {
+            console.error('Play failed after track change:', error);
+            dispatch({ type: 'PAUSE' });
+          });
+        }
+
+        return () => {
+          audio.removeEventListener('play', handlePlay);
+          audio.removeEventListener('pause', handlePause);
+          audio.removeEventListener('error', handleError);
+        };
+      } catch (error) {
+        console.error('Track playback setup failed:', error);
+        // Move to next track if URL is invalid
+        nextTrack();
+      }
     }
-  }, [state.currentTrack?.id]);
+  }, [state.currentTrack && getTrackId(state.currentTrack)]);
 
   // Handle play/pause
   useEffect(() => {
@@ -294,7 +420,14 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!audio) return;
 
     if (state.isPlaying) {
-      audio.play().catch(console.error);
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Play failed:', error);
+          // If autoplay fails, pause the player
+          dispatch({ type: 'PAUSE' });
+        });
+      }
     } else {
       audio.pause();
     }
@@ -309,16 +442,29 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [state.volume]);
 
   // Functions
-  const playTrack = async (track: LocalTrack) => {
+  // Play a single track
+  const playTrack = async (track: Track | LocalTrack) => {
+    // Convert track to frontend format if needed
+    const frontendTrack = isBackendTrack(track) ? convertToFrontendTrack(track) : track;
+    
     // Find track in queue or add it
-    let trackIndex = state.queue.findIndex(t => t.id === track.id);
+    let trackIndex = state.queue.findIndex(t => getTrackId(t) === getTrackId(frontendTrack));
     
     if (trackIndex === -1) {
       // Track not in queue, load more songs with this track
       try {
-        const response = await localApi.getTracks({ order: 'newest', limit: 50, page: 1 });
-        if (response.results?.length) {
-          const newQueue = [track, ...response.results.filter(t => t.id !== track.id)];
+        const response = await api.getTracks({ order: 'newest', limit: 50, page: 1 });
+        if (response.error) {
+          console.error('Failed to load queue:', response.error);
+          // Just play the single track
+          dispatch({ type: 'SET_QUEUE', payload: [frontendTrack] });
+          dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
+          trackIndex = 0;
+          return;
+        }
+        if (response.data?.audios?.length) {
+          const tracks = response.data.audios.map(convertToFrontendTrack);
+          const newQueue = [frontendTrack, ...tracks.filter(t => getTrackId(t) !== getTrackId(frontendTrack))];
           dispatch({ type: 'SET_QUEUE', payload: newQueue });
           dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
           trackIndex = 0;
@@ -326,13 +472,13 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       } catch (error) {
         console.error('Failed to load queue:', error);
         // Just play the single track
-        dispatch({ type: 'SET_QUEUE', payload: [track] });
+        dispatch({ type: 'SET_QUEUE', payload: [frontendTrack] });
         dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
         trackIndex = 0;
       }
     }
 
-    dispatch({ type: 'SET_TRACK', payload: { track, index: trackIndex } });
+    dispatch({ type: 'SET_TRACK', payload: { track: frontendTrack, index: trackIndex } });
     
     // Update shuffle index if in shuffle mode
     if (state.shuffle && state.shuffledIndices.length > 0) {
@@ -343,16 +489,65 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     dispatch({ type: 'PLAY' });
   };
 
-  const playQueue = (tracks: LocalTrack[], startIndex = 0) => {
-    dispatch({ type: 'SET_QUEUE', payload: tracks });
+  // Play a queue of tracks
+  const playQueue = (tracks: (Track | LocalTrack)[], startIndex = 0, source: 'liked-songs' | 'general' = 'general') => {
+    if (!tracks || tracks.length === 0) {
+      console.warn('Attempted to play empty queue');
+      return;
+    }
+
+    // Log the incoming tracks
+    console.log('PlayQueue received tracks:', JSON.stringify(tracks, null, 2));
+
+    // Convert all tracks to frontend format
+    const frontendTracks = tracks.map(track => isBackendTrack(track) ? convertToFrontendTrack(track) : track);
+
+    // Validate tracks have required properties
+    const validTracks = frontendTracks.filter(track => {
+      try {
+        const audioUrl = getTrackAudio(track);
+        console.log('Track validation:', {
+          track: track,
+          audioUrl: audioUrl,
+          isBackendTrack: isBackendTrack(track),
+          isFrontendTrack: isFrontendTrack(track),
+          hasUrl: 'url' in track,
+          hasAudio: 'audio' in track
+        });
+        
+        if (!audioUrl) {
+          console.warn('Track missing audio URL:', track);
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.warn('Invalid track:', track, error);
+        return false;
+      }
+    });
+
+    if (validTracks.length === 0) {
+      console.warn('No valid tracks to play');
+      return;
+    }
+
+    // Log the valid tracks
+    console.log('Valid tracks for playback:', JSON.stringify(validTracks, null, 2));
+
+    // Set the queue with valid tracks
+    dispatch({ type: 'SET_QUEUE', payload: validTracks });
     dispatch({ type: 'GENERATE_SHUFFLE_INDICES' });
-    const track = tracks[startIndex];
+
+    // Ensure startIndex is within bounds
+    const safeStartIndex = Math.min(Math.max(0, startIndex), validTracks.length - 1);
+    const track = validTracks[safeStartIndex];
+
     if (track) {
-      dispatch({ type: 'SET_TRACK', payload: { track, index: startIndex } });
+      dispatch({ type: 'SET_TRACK', payload: { track, index: safeStartIndex } });
       
       // Update shuffle index if in shuffle mode
       if (state.shuffle && state.shuffledIndices.length > 0) {
-        const shuffleIndex = state.shuffledIndices.indexOf(startIndex);
+        const shuffleIndex = state.shuffledIndices.indexOf(safeStartIndex);
         dispatch({ type: 'SET_SHUFFLE_INDEX', payload: shuffleIndex });
       }
       
@@ -361,10 +556,16 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
     if (state.isPlaying) {
-      dispatch({ type: 'PAUSE' });
+      audio.pause();
     } else {
-      dispatch({ type: 'PLAY' });
+      audio.play().catch(error => {
+        console.error('Toggle play failed:', error);
+        dispatch({ type: 'PAUSE' });
+      });
     }
   };
 
@@ -395,10 +596,6 @@ export const MusicPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       // If was playing, directly control audio
       if (wasPlaying) {
         dispatch({ type: 'PLAY' });
-        // Also directly tell audio to play after it loads
-        setTimeout(() => {
-          audio.play().catch(console.error);
-        }, 100);
       }
     }
   };

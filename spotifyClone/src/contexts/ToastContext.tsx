@@ -24,7 +24,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toastOptions={{
           duration: 4000,
           style: {
-            background: '#333',
+            background: '#000000',
             color: '#fff',
           },
         }}

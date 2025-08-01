@@ -90,7 +90,11 @@ router.get('/', async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
-      .populate('tracks', 'title artist_name duration')
+      .populate({
+        path: 'tracks',
+        model: 'Audio',
+        select: 'title artist_name album_name duration url image public_id genre description createdAt updatedAt'
+      })
       .populate('createdBy', 'displayName');
 
     const total = await Playlist.countDocuments(query);
@@ -132,7 +136,11 @@ router.get('/my/playlists', authenticateToken, async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
-      .populate('tracks', 'title artist_name duration')
+      .populate({
+        path: 'tracks',
+        model: 'Audio',
+        select: 'title artist_name album_name duration url image public_id genre description createdAt updatedAt'
+      })
       .populate('createdBy', 'displayName');
 
     const total = await Playlist.countDocuments(query);
@@ -156,7 +164,11 @@ router.get('/my/playlists', authenticateToken, async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const playlist = await Playlist.findById(req.params.id)
-      .populate('tracks')
+      .populate({
+        path: 'tracks',
+        model: 'Audio',
+        select: 'title artist_name album_name duration url image public_id genre description createdAt updatedAt'
+      })
       .populate('createdBy', 'displayName');
     
     if (!playlist) {
@@ -282,7 +294,11 @@ router.post('/:id/tracks', authenticateToken, async (req, res) => {
 
     // Return updated playlist with populated tracks
     const updatedPlaylist = await Playlist.findById(playlist._id)
-      .populate('tracks')
+      .populate({
+        path: 'tracks',
+        model: 'Audio',
+        select: 'title artist_name album_name duration url image public_id genre description createdAt updatedAt'
+      })
       .populate('createdBy', 'displayName');
     
     res.json(updatedPlaylist);
@@ -313,7 +329,11 @@ router.delete('/:id/tracks/:trackId', authenticateToken, async (req, res) => {
 
     // Return updated playlist with populated tracks
     const updatedPlaylist = await Playlist.findById(playlist._id)
-      .populate('tracks')
+      .populate({
+        path: 'tracks',
+        model: 'Audio',
+        select: 'title artist_name album_name duration url image public_id genre description createdAt updatedAt'
+      })
       .populate('createdBy', 'displayName');
     
     res.json(updatedPlaylist);
@@ -355,7 +375,11 @@ router.put('/:id/tracks/reorder', authenticateToken, async (req, res) => {
 
     // Return updated playlist with populated tracks
     const updatedPlaylist = await Playlist.findById(playlist._id)
-      .populate('tracks')
+      .populate({
+        path: 'tracks',
+        model: 'Audio',
+        select: 'title artist_name album_name duration url image public_id genre description createdAt updatedAt'
+      })
       .populate('createdBy', 'displayName');
     
     res.json(updatedPlaylist);
@@ -402,7 +426,12 @@ router.get('/featured/all', async (req, res) => {
     const playlists = await Playlist.find({ isPublic: true, trackCount: { $gt: 0 } })
       .sort({ createdAt: -1 })
       .limit(limit)
-      .populate('tracks', 'title artist_name duration image');
+      .populate({
+        path: 'tracks',
+        model: 'Audio',
+        select: 'title artist_name album_name duration url image public_id genre description createdAt updatedAt'
+      })
+      .populate('createdBy', 'displayName');
     
     res.json(playlists);
   } catch (err) {
@@ -485,7 +514,11 @@ router.get('/followed/all', authenticateToken, async (req, res) => {
         path: 'followedPlaylists',
         populate: [
           { path: 'createdBy', select: 'displayName' },
-          { path: 'tracks', select: 'title artist_name duration' }
+          { 
+            path: 'tracks', 
+            model: 'Audio',
+            select: 'title artist_name album_name duration url image public_id genre description createdAt updatedAt'
+          }
         ],
         options: {
           skip: skip,
@@ -523,7 +556,13 @@ router.get('/:id/stats', async (req, res) => {
       followedPlaylists: playlistId
     });
 
-    const playlist = await Playlist.findById(playlistId).populate('tracks');
+    const playlist = await Playlist.findById(playlistId)
+      .populate({
+        path: 'tracks',
+        model: 'Audio',
+        select: 'title artist_name album_name duration url image public_id genre description createdAt updatedAt'
+      });
+
     if (!playlist) {
       return res.status(404).json({ error: 'Playlist not found' });
     }

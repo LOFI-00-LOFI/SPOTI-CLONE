@@ -1,22 +1,32 @@
-// Shared track interface for local API compatibility
+import { LocalTrack } from './api';
+
 export interface Track {
   id: string;
   name: string;
-  duration: number;
   artist_name: string;
-  artist_id: string;
   album_name: string;
-  album_id: string;
-  album_image: string;
+  duration: number;
   audio: string;
-  audiodownload: string;
-  prourl: string;
-  shorturl: string;
-  shareurl: string;
-  waveform: string;
   image: string;
+  album_image?: string;
   audiodownload_allowed: boolean;
+  // Optional frontend properties
+  audiodownload?: string;
+  prourl?: string;
+  shorturl?: string;
+  shareurl?: string;
+  waveform?: string;
+  // Optional backend properties
+  _id?: string;
+  title?: string;
+  url?: string;
+  public_id?: string;
+  genre?: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-// For backwards compatibility
-export type LocalTrack = Track; 
+export interface BackendTrack extends LocalTrack {}
+
+export interface FrontendTrack extends Track {} 
